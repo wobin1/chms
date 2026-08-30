@@ -1,0 +1,32 @@
+---
+description: Reliability, errors, and Vercel/Prisma operations (ISO 25010 reliability).
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Reliability and operations
+
+Production runs on Vercel (serverless) + hosted Postgres + Cloudinary.
+
+## Errors
+
+- Fail closed. Map unknown errors to a generic 500; do not send stack traces to the client.
+- Use typed errors (`NotFoundError`, `ForbiddenError`, `ValidationError`) in `src/lib`.
+- Never empty `catch`. Never `process.exit` in a Route Handler.
+
+## Data and Prisma
+
+- Use pooled `DATABASE_URL` and `DIRECT_URL` for migrations. Singleton Prisma client (avoid new `PrismaClient()` per request).
+- Migrations via `prisma migrate`; do not edit applied SQL by hand.
+- Transactions for “create church + first admin + seed roles”.
+
+## Vercel
+
+- No writes to the app filesystem except `/tmp`.
+- Keep handlers short; no background loops. Use a queue later if needed.
+- Env-specific config only; `NODE_ENV === 'production'` must not use dev defaults (open CORS, dummy secrets).
+
+## Observability
+
+- Structured logs: `event`, `churchId`, `userId`, `requestId` — no PII values.
+- Health: simple `GET` that checks DB connectivity without exposing internals.

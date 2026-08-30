@@ -1,0 +1,17 @@
+---
+description: After each phase, walk the phase test guide. Tick items only after the user confirms.
+alwaysApply: true
+---
+
+# Phase test guide and user sign-off
+
+After **implementing** a phase (0, 1A, 1B, 1C, 1D, 2A–2E, 3A–3D), stop. Do not start the next phase.
+
+1. Run `npm test`. If it fails, fix it. Automated green is required but **not** sign-off.
+2. Open [phase_test_guide.md](phase_test_guide.md) for **that phase only**.
+3. Ask the user to work through the checks (or confirm you walked them in the browser).
+4. Tick a box `- [x]` **only after the user explicitly confirms** that check (or the whole phase).
+5. Do not tick from your own testing, screenshots, or “it should work”.
+6. When every check in the phase is `[x]`, fill **Signed off** (date + that the user confirmed). Then the next phase may start.
+
+If the user reports a failure, leave the box unchecked, fix, and re-ask. Do not mark the phase complete until they say it is working.

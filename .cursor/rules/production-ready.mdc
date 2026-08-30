@@ -1,0 +1,35 @@
+---
+description: Production-ready quality bar (ISO/IEC 25010). Apply to every implementation.
+alwaysApply: true
+---
+
+# Production-ready bar
+
+Implementation is not done until it is safe to ship to paying churches on Vercel. Align with ISO/IEC 25010: it must work, be secure, reliable, maintainable, and usable — not merely demoable.
+
+## Definition of done
+
+- Correct for the PRD (SaaS tenant isolation, zones ≠ churches, attendance is counts).
+- Typed, validated input and explicit errors. No `any`, no swallowed exceptions.
+- Authz on the server. UI hiding is not security.
+- Tests for the risk you introduced (especially tenant/zone isolation).
+- No secrets in git, client bundles, or logs.
+- No unfinished feature flags that expose incomplete APIs.
+
+## Do not
+
+```ts
+// ❌ ship this
+} catch (e) {}
+fetch('/api/v1/members') // no session / no error handling
+```
+
+```ts
+// ✅
+} catch (e) {
+  logger.error('members.list_failed', { churchId, error: e });
+  throw e;
+}
+```
+
+If a change cannot meet this bar, do not merge it; narrow the scope instead.

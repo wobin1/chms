@@ -1,0 +1,29 @@
+---
+description: Test-driven implementation. One command (npm test) must run the full suite.
+alwaysApply: true
+---
+
+# Test-driven development
+
+Do not implement a feature or bugfix until a failing test exists. Red → green → refactor.
+
+## Cycle
+
+1. Write the smallest test that fails (tenant isolation, zone scope, validation, or UI flow).
+2. Implement only enough to pass.
+3. Re-run tests. Do not leave the suite red.
+4. Then commit (see git-commit-after-feature).
+
+No production code for a new path without a test. No “test later”.
+
+## One command
+
+All automated tests run with **`npm test`** from the repo root. That script must run the full suite (unit, Route Handlers, and UI/e2e once Playwright exists). Do not require a second command to “really” test.
+
+```bash
+npm test
+```
+
+Organize tests so this works: Vitest (e.g. `src/**/*.test.ts`) plus Playwright (e.g. `e2e/`) both invoked from the root `package.json` `"test"` script. No orphan suites outside that script.
+
+Until the app is scaffolded, add `package.json` `"test"` as soon as Phase 0 starts. After that, `npm test` must be non-zero if any test fails.

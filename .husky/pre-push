@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Blocks git push if the full test suite fails.
+set -e
+cd "$(dirname "$0")/.."
+npm test

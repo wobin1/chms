@@ -1,0 +1,23 @@
+---
+description: Light and dark theme required. CSS variables, next-themes, WCAG in both modes.
+globs: "**/*.{ts,tsx,css}"
+alwaysApply: false
+---
+
+# Light and dark mode
+
+Both themes are required from Phase 0, not a later extra. Tokens live in `docs/ui-references/palette.md`.
+
+## Must
+
+- `next-themes` with `attribute="class"` on `html`. Respect `prefers-color-scheme`; remember the user’s choice.
+- Header control: Light / Dark / System. Visible on login and in-app. Accessible name (“Switch to dark theme”).
+- All colors from CSS variables (`bg-canvas`, `bg-surface`, `text-accent`). No one-off `bg-white` that breaks in dark mode.
+- Sidebar, header, cards, tables, charts, toasts, and modals all theme. Test both before calling a screen done.
+- Contrast: WCAG AA for text and buttons in **both** modes. Don’t dim muted text in dark until it fails AA.
+
+## Do not
+
+- Flash the wrong theme on load (set theme before paint).
+- Use `dark:` with raw gray/blue hex that drifts from `palette.md`.
+- Hide content that only works in light (e.g. black icons on dark surface without inversion).

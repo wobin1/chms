@@ -1,0 +1,37 @@
+---
+description: Production HTTP/JSON API conventions for Route Handlers.
+globs: "**/api/**/*.ts"
+alwaysApply: false
+---
+
+# API standards
+
+Versioned under `/api/v1`. JSON in/out. Stable field names (`camelCase` in JSON, Prisma `camelCase` mapped from `snake_case` DB if used).
+
+## HTTP
+
+| Situation | Status |
+|---|---|
+| Created | 201 + resource |
+| Validation | 400 `{ error, details }` |
+| Unauthenticated | 401 |
+| Authenticated but not allowed (same tenant) | 403 |
+| Wrong tenant or missing row | 404 |
+| Conflict (duplicate slug, membership number) | 409 |
+| Success with no body | 204 |
+
+## Must
+
+- Parse body with Zod. Reject unknown fields on write where practical.
+- List endpoints: pagination (`cursor` or `page` + `pageSize` cap), default sort, church filter from session.
+- Idempotent GET. PATCH/POST mutations invalidate nothing on the server; clients use TanStack Query keys `['members', churchId, ...]`.
+- No `member_id` on attendance payloads.
+
+```ts
+// ✅
+const body = createMemberSchema.parse(await req.json());
+const member = await prisma.member.create({
+  data: { ...body, churchId: session.churchId },
+});
+return NextResponse.json(member, { status: 201 });
+```

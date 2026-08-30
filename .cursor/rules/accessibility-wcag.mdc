@@ -1,0 +1,26 @@
+---
+description: WCAG 2.2 AA for every UI surface (auth, platform, church, future member).
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# Accessibility (WCAG 2.2 AA)
+
+Applies to **all** UIs: login, Super Admin, church app, and any later public or member pages. Prefer semantic HTML over clickable `div`s.
+
+## Must
+
+- Every input has a visible `<label>` (or `aria-label`). Errors use `aria-invalid` and are announced.
+- Buttons say the action, not only an icon. Icon-only controls need an accessible name.
+- Focus visible. Do not remove outlines without a replacement.
+- Modals: focus trap, Escape to close, return focus to the opener.
+- Color is not the only status signal.
+- Images have `alt` (empty `alt=""` if decorative).
+- Auth pages: keyboard-complete; errors associated with fields; show/hide password is labeled.
+- Tables: column headers, keyboard-reachable row actions (not hover-only).
+
+## Contrast
+
+Text vs background must meet WCAG AA in **both light and dark**. Do not place muted text on canvas/surface if it fails contrast.
+
+If a widget cannot be operated with Tab/Enter/Space, it is not done — including Sign in.

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: chms
+          POSTGRES_PASSWORD: chms
+          POSTGRES_DB: chms
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chms -d chms"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://chms:chms@localhost:5432/chms
+      DIRECT_URL: postgresql://chms:chms@localhost:5432/chms
+      SESSION_SECRET: ci-session-secret-must-be-at-least-32-chars
+      SEED_SUPER_ADMIN_EMAIL: admin@chms.local
+      SEED_SUPER_ADMIN_PASSWORD: ChangeMe!admin1
+      CLOUDINARY_CLOUD_NAME: test-cloud
+      CLOUDINARY_API_KEY: test-key
+      CLOUDINARY_API_SECRET: test-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx prisma migrate deploy
+      - run: npx prisma db seed
+      - run: npm run lint
+      - run: npm test

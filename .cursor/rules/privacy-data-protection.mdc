@@ -1,0 +1,24 @@
+---
+description: Personal-data handling aligned with GDPR/ISO 27001 practices (not a certification claim).
+alwaysApply: true
+---
+
+# Privacy and personal data
+
+Member, visitor, pastoral, and giving records are personal data. Collect the minimum needed. Do not put PII in URLs, client logs, or analytics payloads.
+
+## Must
+
+- Soft-delete members (`deleted_at`). Do not hard-delete in MVP except where legally required later.
+- Pastoral and finance fields require extra permissions. Zone Leaders do not get other zones’ PII.
+- Export/download is permissioned (`members:export`) and church-scoped.
+- Audit: church create/suspend, member deactivate, zone changes, money, roles. Church users see only their church’s audit log.
+- Photos: Cloudinary URLs on the row; no files in Postgres or the Vercel filesystem.
+
+## Do not
+
+- Log email, phone, address, or pastoral notes at `info` level.
+- Use production dumps in local seeds.
+- Share one membership number uniqueness constraint across churches — uniqueness is **per church**.
+
+When adding a field, ask: do we need it to run the church? If not, omit it.

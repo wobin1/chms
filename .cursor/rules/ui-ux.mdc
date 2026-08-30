@@ -1,0 +1,38 @@
+---
+description: Product-wide UI/UX (ISO 9241 / Nielsen). All roles and surfaces, not only admin.
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# UI/UX
+
+Applies to **every** user: Super Admin, church staff, attendance officers, and any later member/visitor flows. Follow ISO 9241-110: self-descriptive, consistent, error-tolerant, suited to the task.
+
+## Task flow
+
+- One primary action per page. Secondary actions are quieter.
+- Destructive actions need a confirm.
+- After save: toast or inline success, then stay in context or return to the list — never a blank screen.
+- Auth: clear next step after login (platform vs church). Failed login says so without leaking whether the email exists, if that is the security choice.
+- Filters, search, and pagination: preserve list state in the URL when bookmarking helps.
+
+## States (every list, form, and auth page)
+
+Ship **loading**, **empty**, **error**, and **populated**. Empty copy must say what to do, not “No data”. Login and forgot-password need error and pending states too.
+
+## Forms (TanStack Form or auth forms)
+
+- Visible labels. Required fields marked. Inline field errors, not only a banner.
+- Disable double-submit. Show pending on the submit button.
+- Unsaved-change warning on edit pages.
+
+## Consistency
+
+- Same object = same layout everywhere it appears.
+- Platform shell, church shell, and auth share type, color, radius, and components. Different nav/layout, not a different product.
+- Do not invent a new table, modal, or button style per feature.
+
+## Copy
+
+- Sentence case. Domain words: church, member, zone, service — not “workspace” or “persona”.
+- Errors say how to fix, in the user’s language (staff vs later member portal).

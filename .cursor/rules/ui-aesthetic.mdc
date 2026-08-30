@@ -1,0 +1,46 @@
+---
+description: UI aesthetic from reference screenshots, blue tokens, light and dark.
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# UI aesthetic
+
+Every surface (login, platform, church, later member pages) uses the same tokens. **Read** `docs/ui-references/01-list-table.png`, `02-dashboard.png`, and `palette.md` first.
+
+## Color
+
+- Brand is **blue and its shades** (`accent`, `accent-hover`, `accent-soft`). Never the reference green.
+- Light: cool gray canvas, white surface. Dark: navy canvas, slate surface. Same layout both ways.
+- Status: blue family for primary/positive UI; `warning` / `danger` only for pending and destructive.
+- No purple/pink gradients. Sidebar active state = **solid blue pill** (not a rainbow).
+
+## Shape and depth
+
+- Cards, table shell, inputs: `rounded-xl`. Pills (nav active, tabs, chips, primary add): `rounded-full`.
+- Light shadow on cards (`shadow-sm`), enough to lift from canvas. No glow.
+- Spacing: Tailwind scale. Generous gap between sidebar, header, and cards (like the shots).
+
+## Type
+
+- One sans (e.g. Inter). Bold titles, regular table cells. Tabular numbers for counts.
+- Do not use faint gray body text; `text-muted` must still pass AA in **both** themes.
+
+## Shell
+
+- **Auth:** centered card on canvas; same radius and accent; theme toggle visible.
+- **App:** sticky sidebar + header search + profile. Church vs platform = different nav labels, same chrome.
+- **Lists:** tabs + title + search/filter + primary add; TanStack table; view/edit/delete as small rounded icon buttons (blue / blue / danger).
+- **Dashboard:** KPI cards with number + short trend; real data only, no fake charts.
+
+```tsx
+// ❌  screenshot green or mixed radius
+<button className="rounded-md bg-emerald-500">Add</button>
+
+// ✅  our blue pill
+<button className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover">
+  Add member
+</button>
+```
+
+If light and dark do not both look like this shell, it is not done.

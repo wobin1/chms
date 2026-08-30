@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Blocks git push if the full test suite fails.
+# Enable with: npx husky init  (Phase 0) and keep this file as .husky/pre-push
+set -e
+cd "$(dirname "$0")/.."
+npm test

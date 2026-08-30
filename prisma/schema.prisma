@@ -1,0 +1,804 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ChurchStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ZoneStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ZoneLeaderStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MemberGender {
+  FEMALE
+  MALE
+  OTHER
+  UNSPECIFIED
+}
+
+enum GroupStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ServiceStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum VisitorStatus {
+  NEW
+  FOLLOW_UP
+  CONTACTED
+  RETURNING
+  CONVERTED
+  CLOSED
+}
+
+enum VisitFollowUpStatus {
+  NONE
+  PENDING
+  CONTACTED
+  CLOSED
+}
+
+model Church {
+  id           String       @id @default(uuid()) @db.Uuid
+  name         String
+  slug         String       @unique
+  shortName    String?      @map("short_name")
+  denomination String?
+  address      String?
+  city         String?
+  state        String?
+  phone        String?
+  email        String?
+  logo         String?
+  status       ChurchStatus @default(ACTIVE)
+  notes        String?
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  users              User[]
+  roles              Role[]
+  auditLogs          AuditLog[]
+  zones              Zone[]
+  membershipStatuses MembershipStatus[]
+  members            Member[]
+  families           Family[]
+  children           Child[]
+  departments        Department[]
+  ministries         Ministry[]
+  serviceTypes       ServiceType[]
+  attendanceCategories AttendanceCategory[]
+  services           Service[]
+  visitors           Visitor[]
+  events             Event[]
+  givingTypes        GivingType[]
+  givingRecords      Giving[]
+  expenseCategories  ExpenseCategory[]
+  expenses           Expense[]
+  sermons            Sermon[]
+  announcements      Announcement[]
+  pastoralCases      PastoralCase[]
+  prayerRequests     PrayerRequest[]
+
+  @@map("churches")
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  churchId     String?    @map("church_id") @db.Uuid
+  memberId     String?    @unique @map("member_id") @db.Uuid
+  name         String
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?  @map("last_login_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  church              Church?              @relation(fields: [churchId], references: [id])
+  member              Member?              @relation(fields: [memberId], references: [id])
+  userRoles           UserRole[]
+  auditLogs           AuditLog[]
+  passwordResetTokens PasswordResetToken[]
+  zoneLeaders         ZoneLeader[]
+  recordedGiving      Giving[]
+  recordedExpenses    Expense[]
+  announcements       Announcement[]
+  assignedPastoralCases PastoralCase[]
+  assignedPrayerRequests PrayerRequest[]
+
+  @@index([churchId])
+  @@map("users")
+}
+
+model Role {
+  id          String  @id @default(uuid()) @db.Uuid
+  churchId    String? @map("church_id") @db.Uuid
+  name        String
+  description String?
+
+  church          Church?          @relation(fields: [churchId], references: [id])
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([churchId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique
+  description String?
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String @map("user_id") @db.Uuid
+  roleId String @map("role_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  churchId   String?  @map("church_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldData    Json?    @map("old_data")
+  newData    Json?    @map("new_data")
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  church Church? @relation(fields: [churchId], references: [id])
+  user   User    @relation(fields: [userId], references: [id])
+
+  @@index([churchId])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
+}
+
+model Zone {
+  id          String     @id @default(uuid()) @db.Uuid
+  churchId    String     @map("church_id") @db.Uuid
+  name        String
+  description String?
+  status      ZoneStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  church  Church       @relation(fields: [churchId], references: [id])
+  leaders ZoneLeader[]
+  members Member[]
+
+  @@unique([churchId, name])
+  @@index([churchId])
+  @@map("zones")
+}
+
+model ZoneLeader {
+  id         String           @id @default(uuid()) @db.Uuid
+  zoneId     String           @map("zone_id") @db.Uuid
+  userId     String           @map("user_id") @db.Uuid
+  role       String           @default("Zone Leader")
+  assignedAt DateTime         @default(now()) @map("assigned_at")
+  status     ZoneLeaderStatus @default(ACTIVE)
+
+  zone Zone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([zoneId, userId])
+  @@index([userId])
+  @@map("zone_leaders")
+}
+
+model MembershipStatus {
+  id        String   @id @default(uuid()) @db.Uuid
+  churchId  String   @map("church_id") @db.Uuid
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  church  Church   @relation(fields: [churchId], references: [id])
+  members Member[]
+
+  @@unique([churchId, name])
+  @@index([churchId])
+  @@map("membership_statuses")
+}
+
+model Member {
+  id                 String       @id @default(uuid()) @db.Uuid
+  churchId           String       @map("church_id") @db.Uuid
+  zoneId             String?      @map("zone_id") @db.Uuid
+  membershipStatusId String       @map("membership_status_id") @db.Uuid
+  membershipNumber   String       @map("membership_number")
+  firstName          String       @map("first_name")
+  middleName         String?      @map("middle_name")
+  lastName           String       @map("last_name")
+  gender             MemberGender @default(UNSPECIFIED)
+  dateOfBirth        DateTime?    @map("date_of_birth") @db.Date
+  phone              String?
+  email              String?
+  address            String?
+  city               String?
+  state              String?
+  occupation         String?
+  maritalStatus      String?      @map("marital_status")
+  dateJoined         DateTime?    @map("date_joined") @db.Date
+  photoUrl           String?      @map("photo_url")
+  photoPublicId      String?      @map("photo_public_id")
+  notes              String?
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+  deletedAt          DateTime?    @map("deleted_at")
+
+  church           Church           @relation(fields: [churchId], references: [id])
+  zone             Zone?            @relation(fields: [zoneId], references: [id])
+  membershipStatus MembershipStatus @relation(fields: [membershipStatusId], references: [id])
+  familyMembers    FamilyMember[]
+  departments      MemberDepartment[]
+  ministries       MemberMinistry[]
+  convertedFromVisitors Visitor[]
+  linkedUsers           User[]
+  childGuardians        ChildGuardian[]
+  giving                Giving[]
+  pastoralCases         PastoralCase[]
+  prayerRequests        PrayerRequest[]
+
+  @@unique([churchId, membershipNumber])
+  @@index([churchId])
+  @@index([zoneId])
+  @@index([membershipStatusId])
+  @@index([lastName])
+  @@map("members")
+}
+
+model Family {
+  id        String   @id @default(uuid()) @db.Uuid
+  churchId  String   @map("church_id") @db.Uuid
+  name      String
+  address   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  church   Church         @relation(fields: [churchId], references: [id])
+  members  FamilyMember[]
+  children Child[]
+
+  @@unique([churchId, name])
+  @@index([churchId])
+  @@map("families")
+}
+
+model FamilyMember {
+  id           String   @id @default(uuid()) @db.Uuid
+  familyId     String   @map("family_id") @db.Uuid
+  memberId     String   @unique @map("member_id") @db.Uuid
+  relationship String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@map("family_members")
+}
+
+enum ChildStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Child {
+  id          String       @id @default(uuid()) @db.Uuid
+  churchId    String       @map("church_id") @db.Uuid
+  familyId    String       @map("family_id") @db.Uuid
+  firstName   String       @map("first_name")
+  middleName  String?      @map("middle_name")
+  lastName    String       @map("last_name")
+  gender      MemberGender @default(UNSPECIFIED)
+  dateOfBirth DateTime?    @map("date_of_birth") @db.Date
+  school      String?
+  notes       String?
+  status      ChildStatus  @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  church    Church          @relation(fields: [churchId], references: [id])
+  family    Family          @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  guardians ChildGuardian[]
+
+  @@index([churchId])
+  @@index([familyId])
+  @@index([lastName])
+  @@map("children")
+}
+
+model ChildGuardian {
+  id           String   @id @default(uuid()) @db.Uuid
+  childId      String   @map("child_id") @db.Uuid
+  memberId     String   @map("member_id") @db.Uuid
+  relationship String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  child  Child  @relation(fields: [childId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, memberId])
+  @@index([memberId])
+  @@map("child_guardians")
+}
+
+model Department {
+  id          String      @id @default(uuid()) @db.Uuid
+  churchId    String      @map("church_id") @db.Uuid
+  name        String
+  description String?
+  status      GroupStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  church  Church             @relation(fields: [churchId], references: [id])
+  members MemberDepartment[]
+
+  @@unique([churchId, name])
+  @@index([churchId])
+  @@map("departments")
+}
+
+model MemberDepartment {
+  id           String      @id @default(uuid()) @db.Uuid
+  memberId     String      @map("member_id") @db.Uuid
+  departmentId String      @map("department_id") @db.Uuid
+  role         String      @default("Member")
+  joinedAt     DateTime    @default(now()) @map("joined_at")
+  status       GroupStatus @default(ACTIVE)
+
+  member     Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, departmentId])
+  @@index([departmentId])
+  @@map("member_departments")
+}
+
+model Ministry {
+  id          String      @id @default(uuid()) @db.Uuid
+  churchId    String      @map("church_id") @db.Uuid
+  name        String
+  description String?
+  status      GroupStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  church  Church           @relation(fields: [churchId], references: [id])
+  members MemberMinistry[]
+
+  @@unique([churchId, name])
+  @@index([churchId])
+  @@map("ministries")
+}
+
+model MemberMinistry {
+  id         String      @id @default(uuid()) @db.Uuid
+  memberId   String      @map("member_id") @db.Uuid
+  ministryId String      @map("ministry_id") @db.Uuid
+  role       String      @default("Member")
+  joinedAt   DateTime    @default(now()) @map("joined_at")
+  status     GroupStatus @default(ACTIVE)
+
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  ministry Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, ministryId])
+  @@index([ministryId])
+  @@map("member_ministries")
+}
+
+model ServiceType {
+  id        String   @id @default(uuid()) @db.Uuid
+  churchId  String   @map("church_id") @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  church   Church    @relation(fields: [churchId], references: [id])
+  services Service[]
+
+  @@unique([churchId, name])
+  @@index([churchId])
+  @@map("service_types")
+}
+
+model AttendanceCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  churchId  String   @map("church_id") @db.Uuid
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  church Church              @relation(fields: [churchId], references: [id])
+  counts ServiceAttendance[]
+
+  @@unique([churchId, name])
+  @@index([churchId])
+  @@map("attendance_categories")
+}
+
+model Service {
+  id            String        @id @default(uuid()) @db.Uuid
+  churchId      String        @map("church_id") @db.Uuid
+  serviceTypeId String        @map("service_type_id") @db.Uuid
+  serviceDate   DateTime      @map("service_date") @db.Date
+  name          String
+  theme         String?
+  scripture     String?
+  preacher      String?
+  startTime     String?       @map("start_time")
+  endTime       String?       @map("end_time")
+  notes         String?
+  status        ServiceStatus @default(SCHEDULED)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  church     Church              @relation(fields: [churchId], references: [id])
+  serviceType ServiceType        @relation(fields: [serviceTypeId], references: [id])
+  attendance ServiceAttendance[]
+  visits     VisitorVisit[]
+  giving     Giving[]
+  sermons    Sermon[]
+
+  @@index([churchId])
+  @@index([serviceDate])
+  @@map("services")
+}
+
+model ServiceAttendance {
+  id                   String   @id @default(uuid()) @db.Uuid
+  serviceId            String   @map("service_id") @db.Uuid
+  attendanceCategoryId String   @map("attendance_category_id") @db.Uuid
+  count                Int
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  service            Service            @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  attendanceCategory AttendanceCategory @relation(fields: [attendanceCategoryId], references: [id])
+
+  @@unique([serviceId, attendanceCategoryId])
+  @@index([serviceId])
+  @@map("service_attendance")
+}
+
+model Visitor {
+  id                 String        @id @default(uuid()) @db.Uuid
+  churchId           String        @map("church_id") @db.Uuid
+  firstName          String        @map("first_name")
+  lastName           String        @map("last_name")
+  phone              String?
+  email              String?
+  gender             MemberGender  @default(UNSPECIFIED)
+  address            String?
+  howHeard           String?       @map("how_heard")
+  firstVisitDate     DateTime?     @map("first_visit_date") @db.Date
+  status             VisitorStatus @default(NEW)
+  notes              String?
+  convertedMemberId  String?       @map("converted_member_id") @db.Uuid
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  church          Church         @relation(fields: [churchId], references: [id])
+  convertedMember Member?        @relation(fields: [convertedMemberId], references: [id])
+  visits          VisitorVisit[]
+
+  @@index([churchId])
+  @@index([lastName])
+  @@map("visitors")
+}
+
+model VisitorVisit {
+  id             String              @id @default(uuid()) @db.Uuid
+  visitorId      String              @map("visitor_id") @db.Uuid
+  serviceId      String              @map("service_id") @db.Uuid
+  visitDate      DateTime            @map("visit_date") @db.Date
+  followUpStatus VisitFollowUpStatus @default(NONE) @map("follow_up_status")
+  notes          String?
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  visitor Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@index([visitorId])
+  @@index([serviceId])
+  @@map("visitor_visits")
+}
+
+enum EventStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PastoralCaseStatus {
+  OPEN
+  IN_PROGRESS
+  ON_HOLD
+  CLOSED
+}
+
+enum PastoralCasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum PrayerRequestStatus {
+  OPEN
+  IN_PROGRESS
+  ANSWERED
+  CLOSED
+}
+
+model Event {
+  id          String      @id @default(uuid()) @db.Uuid
+  churchId    String      @map("church_id") @db.Uuid
+  name        String
+  description String?
+  eventType   String      @map("event_type")
+  startDate   DateTime    @map("start_date") @db.Date
+  endDate     DateTime    @map("end_date") @db.Date
+  location    String
+  status      EventStatus @default(SCHEDULED)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  church     Church           @relation(fields: [churchId], references: [id])
+  attendance EventAttendance?
+
+  @@index([churchId])
+  @@index([startDate])
+  @@map("events")
+}
+
+model EventAttendance {
+  id               String   @id @default(uuid()) @db.Uuid
+  eventId          String   @unique @map("event_id") @db.Uuid
+  attendanceCount  Int      @map("attendance_count")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("event_attendance")
+}
+
+model GivingType {
+  id          String      @id @default(uuid()) @db.Uuid
+  churchId    String      @map("church_id") @db.Uuid
+  name        String
+  description String?
+  status      GroupStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  church Church   @relation(fields: [churchId], references: [id])
+  giving Giving[]
+
+  @@unique([churchId, name])
+  @@index([churchId])
+  @@map("giving_types")
+}
+
+model Giving {
+  id                    String   @id @default(uuid()) @db.Uuid
+  churchId              String   @map("church_id") @db.Uuid
+  serviceId             String?  @map("service_id") @db.Uuid
+  givingTypeId          String   @map("giving_type_id") @db.Uuid
+  memberId              String?  @map("member_id") @db.Uuid
+  amount                Decimal  @db.Decimal(12, 2)
+  paymentMethod         String   @map("payment_method")
+  transactionReference  String?  @map("transaction_reference")
+  recordedById          String   @map("recorded_by") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  church     Church      @relation(fields: [churchId], references: [id])
+  service    Service?    @relation(fields: [serviceId], references: [id])
+  givingType GivingType  @relation(fields: [givingTypeId], references: [id])
+  member     Member?     @relation(fields: [memberId], references: [id])
+  recordedBy User        @relation(fields: [recordedById], references: [id])
+
+  @@index([churchId])
+  @@index([givingTypeId])
+  @@index([memberId])
+  @@index([serviceId])
+  @@map("giving")
+}
+
+model ExpenseCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  churchId    String   @map("church_id") @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  church   Church    @relation(fields: [churchId], references: [id])
+  expenses Expense[]
+
+  @@unique([churchId, name])
+  @@index([churchId])
+  @@map("expense_categories")
+}
+
+model Expense {
+  id             String   @id @default(uuid()) @db.Uuid
+  churchId       String   @map("church_id") @db.Uuid
+  categoryId     String   @map("category_id") @db.Uuid
+  amount         Decimal  @db.Decimal(12, 2)
+  description    String
+  expenseDate    DateTime @map("expense_date") @db.Date
+  paymentMethod  String   @map("payment_method")
+  reference      String?
+  recordedById   String   @map("recorded_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  church     Church          @relation(fields: [churchId], references: [id])
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id])
+  recordedBy User            @relation(fields: [recordedById], references: [id])
+
+  @@index([churchId])
+  @@index([categoryId])
+  @@index([expenseDate])
+  @@map("expenses")
+}
+
+model Sermon {
+  id          String   @id @default(uuid()) @db.Uuid
+  churchId    String   @map("church_id") @db.Uuid
+  serviceId   String   @map("service_id") @db.Uuid
+  title       String
+  preacher    String
+  scripture   String?
+  summary     String?
+  audioUrl    String?  @map("audio_url")
+  videoUrl    String?  @map("video_url")
+  documentUrl String?  @map("document_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  church  Church  @relation(fields: [churchId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@index([churchId])
+  @@index([serviceId])
+  @@map("sermons")
+}
+
+model Announcement {
+  id          String             @id @default(uuid()) @db.Uuid
+  churchId    String             @map("church_id") @db.Uuid
+  title       String
+  content     String
+  startDate   DateTime           @map("start_date") @db.Date
+  endDate     DateTime           @map("end_date") @db.Date
+  status      AnnouncementStatus @default(DRAFT)
+  createdById String             @map("created_by") @db.Uuid
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  church    Church @relation(fields: [churchId], references: [id])
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@index([churchId])
+  @@index([startDate])
+  @@map("announcements")
+}
+
+model PastoralCase {
+  id           String                @id @default(uuid()) @db.Uuid
+  churchId     String                @map("church_id") @db.Uuid
+  memberId     String                @map("member_id") @db.Uuid
+  caseType     String                @map("case_type")
+  title        String
+  description  String?
+  notes        String?
+  priority     PastoralCasePriority  @default(MEDIUM)
+  status       PastoralCaseStatus    @default(OPEN)
+  assignedToId String?               @map("assigned_to") @db.Uuid
+  openedAt     DateTime              @default(now()) @map("opened_at")
+  closedAt     DateTime?             @map("closed_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  church     Church  @relation(fields: [churchId], references: [id])
+  member     Member  @relation(fields: [memberId], references: [id])
+  assignedTo User?   @relation(fields: [assignedToId], references: [id])
+
+  @@index([churchId])
+  @@index([memberId])
+  @@index([status])
+  @@map("pastoral_cases")
+}
+
+model PrayerRequest {
+  id           String              @id @default(uuid()) @db.Uuid
+  churchId     String              @map("church_id") @db.Uuid
+  memberId     String?             @map("member_id") @db.Uuid
+  title        String
+  description  String?
+  status       PrayerRequestStatus @default(OPEN)
+  assignedToId String?             @map("assigned_to") @db.Uuid
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+  completedAt  DateTime?           @map("completed_at")
+
+  church     Church  @relation(fields: [churchId], references: [id])
+  member     Member? @relation(fields: [memberId], references: [id])
+  assignedTo User?   @relation(fields: [assignedToId], references: [id])
+
+  @@index([churchId])
+  @@index([memberId])
+  @@index([status])
+  @@map("prayer_requests")
+}

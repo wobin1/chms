@@ -1,0 +1,29 @@
+---
+description: Match docs/ui-references screenshots. Blue palette. Light and dark mode. Church copy, not the other app.
+alwaysApply: true
+---
+
+# Visual reference screenshots
+
+Before any UI work, **Read** `docs/ui-references/01-list-table.png`, `docs/ui-references/02-dashboard.png`, and `docs/ui-references/palette.md`.
+
+## Match from the screenshots
+
+- Left sidebar: logo, icon+label nav, nested item with a dot, collapse control
+- Header: wide rounded global search, notification/message icons, avatar + name + role
+- List page: pill tabs, page title, table search, Filter, primary “+ Add …”
+- Table: sort on headers, trailing view/edit/delete icon buttons
+- Dashboard: KPI row, large chart card, side list card, notice/table cards
+- Shape: large rounding on cards, inputs, pills (`rounded-xl` / `rounded-full` for pills)
+- Light canvas behind white (in dark: navy canvas behind elevated surface)
+
+## Ours, not theirs
+
+- Accent is **blue** from `palette.md` (replace every green).
+- **Light and dark** both required. Toggle in the header; persist preference.
+- Copy: church, member, zone, service — not Employee/Award/Leave from the shots.
+- Nav items follow the PRD, not the HR menu.
+- Skip “Daily Meeting” / Join Zoom unless product asks for it.
+- Attendance stays **counts**, not a member roll-call, even if a chart looks like HR attendance.
+
+If a shot conflicts with the PRD, the **PRD wins**.

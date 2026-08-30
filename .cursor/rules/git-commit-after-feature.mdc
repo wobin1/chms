@@ -1,0 +1,24 @@
+---
+description: Commit to git after each completed feature. Do not leave work uncommitted.
+alwaysApply: true
+---
+
+# Commit after each feature
+
+When a feature (or a coherent vertical slice) is implemented and `npm test` passes, **create a git commit**. Do not wait for the user to ask. Do not batch unrelated features into one commit.
+
+## How
+
+Follow the repo git protocol: `git status`, `git diff`, `git log` for message style, stage only relevant files, commit with a HEREDOC message that says **why**.
+
+Do not commit `.env`, secrets, or `node_modules`. Do not use `--no-verify`, `--amend` unless the user asked and the amend rules allow it. Do not push in this step.
+
+## Scope
+
+One feature = one commit when possible (e.g. “zones CRUD + isolation tests”). If the slice is large, commit each green TDD step that is a working unit.
+
+```text
+✅  tests pass → git commit
+❌  tests fail → fix; do not commit a red suite
+❌  implement and leave uncommitted “for later”
+```

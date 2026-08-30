@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: chms
+      POSTGRES_PASSWORD: chms
+      POSTGRES_DB: chms
+    ports:
+      - "5433:5432"
+    volumes:
+      - chms_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chms -d chms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  chms_pgdata:

@@ -1,0 +1,20 @@
+---
+description: Never git push to origin unless npm test passed. Failed tests block the push.
+alwaysApply: true
+---
+
+# Pre-push test gate
+
+Before any `git push` to `origin`, run **`npm test`** from the repo root and wait for it to finish.
+
+- Exit code **0** → push may proceed.
+- Exit code **non-zero** → **do not push**. Fix tests, commit the fix, run `npm test` again.
+- Never `git push --no-verify` or otherwise skip the hook to get a red suite onto origin.
+
+This applies even if a Git hook is missing. The agent must run the command itself, not assume CI will catch it.
+
+```bash
+npm test && git push -u origin HEAD
+```
+
+If the user asked to push and tests fail, report the failure and stop. Do not push “just this once”.

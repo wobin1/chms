@@ -1,0 +1,33 @@
+---
+description: OWASP-aligned security for Next.js SaaS (auth, tenant isolation, secrets).
+alwaysApply: true
+---
+
+# Security (OWASP ASVS / Top 10)
+
+Treat church data as confidential. Enforce controls in Route Handlers and `src/lib`, never only in React.
+
+## Must
+
+- Authenticate with httpOnly session cookies. No JWT in `localStorage`.
+- Authorize with `requireSession` + `requirePermission`. Then **tenant-scope** with `session.churchId` — never trust `churchId` from query/body.
+- Church A requesting Church B’s UUID must get **not-found**, not a leaky 403.
+- Hash passwords with a slow KDF (argon2id or bcrypt). Timing-safe compare.
+- Validate all inputs with Zod. Parameterized Prisma only — no raw SQL string concat.
+- CSRF: same-site cookies; mutating Route Handlers reject unauthenticated calls.
+- File uploads only via signed Cloudinary; API secret stays on the server. Folders: `chms/{churchId}/...`.
+- Security headers via Next.js (`headers()`): deny framing, nosniff, HSTS on Vercel is default.
+
+## Secrets
+
+- Env vars only (`DATABASE_URL`, `DIRECT_URL`, session secret, Cloudinary). Never commit `.env`.
+- Do not log tokens, passwords, or full member records.
+
+```ts
+// ❌
+const churchId = req.nextUrl.searchParams.get('churchId');
+
+// ✅
+const churchId = session.churchId;
+if (!churchId) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+```
