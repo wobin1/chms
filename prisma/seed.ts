@@ -10,6 +10,12 @@ import {
   DEFAULT_SERVICE_TYPES,
   PLATFORM_PERMISSIONS,
 } from "../src/lib/permission-catalog";
+import {
+  assertCanSeedSuperAdminInProduction,
+  resolveSuperAdminCredentials,
+  superAdminUserMetadata,
+  superAdminUserUpsertData,
+} from "../src/lib/super-admin-seed";
 
 const prisma = new PrismaClient();
 
@@ -295,14 +301,23 @@ async function seedChurchDashboardDemo(churchId: string) {
 }
 
 async function main() {
-  const email = (
-    process.env.SEED_SUPER_ADMIN_EMAIL ?? "admin@chms.local"
-  ).toLowerCase();
-  const password = process.env.SEED_SUPER_ADMIN_PASSWORD ?? "ChangeMe!admin1";
+  const isProduction = process.env.NODE_ENV === "production";
+  const { email, password } = resolveSuperAdminCredentials({
+    isProduction,
+    emailFromEnv: process.env.SEED_SUPER_ADMIN_EMAIL,
+    passwordFromEnv: process.env.SEED_SUPER_ADMIN_PASSWORD,
+    defaultPassword: "ChangeMe!admin1",
+  });
 
-  if (process.env.NODE_ENV === "production" && !process.env.SEED_SUPER_ADMIN_PASSWORD) {
-    throw new Error("SEED_SUPER_ADMIN_PASSWORD is required in production");
-  }
+  const existingSuperAdmin = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+  assertCanSeedSuperAdminInProduction({
+    isProduction,
+    password,
+    superAdminExists: Boolean(existingSuperAdmin),
+  });
 
   const permissionNames = [
     ...PLATFORM_PERMISSIONS.map((name) => ({
@@ -355,23 +370,20 @@ async function main() {
     },
   });
 
-  const passwordHash = await hashPassword(password);
-  const user = await prisma.user.upsert({
-    where: { email },
-    update: {
-      name: "Platform Owner",
-      passwordHash,
-      status: "ACTIVE",
-      churchId: null,
-    },
-    create: {
-      name: "Platform Owner",
-      email,
-      passwordHash,
-      status: "ACTIVE",
-      churchId: null,
-    },
-  });
+  let user;
+  if (password) {
+    const passwordHash = await hashPassword(password);
+    const userUpsert = superAdminUserUpsertData(email, passwordHash);
+    user = await prisma.user.upsert({
+      where: { email },
+      ...userUpsert,
+    });
+  } else {
+    user = await prisma.user.update({
+      where: { email },
+      data: superAdminUserMetadata(),
+    });
+  }
 
   await prisma.userRole.upsert({
     where: {

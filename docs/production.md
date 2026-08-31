@@ -25,9 +25,9 @@ Optional:
 | `MAILTRAP_API_TOKEN` | Mailtrap API token (sending or testing) |
 | `MAILTRAP_INBOX_ID` | Optional; when set, uses Mailtrap Email Testing sandbox |
 | `EMAIL_FROM` | From address, e.g. `CHMS <noreply@yourdomain.com>` |
-| `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` | Only for one-time seed; prefer rotating after first login |
+| `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` | Required on **first** production deploy (creates Super Administrator). After that, redeploys sync permissions without resetting the password; you may remove `SEED_SUPER_ADMIN_PASSWORD` once you have signed in and changed it. |
 
-Confirm `.env` / `.env.local` stay gitignored. `vercel.json` runs `prisma migrate deploy` on build.
+Confirm `.env` / `.env.local` stay gitignored. `npm run build` (Vercel deploy) runs `prisma migrate deploy` and `prisma db seed` before `next build`.
 
 ## Database backups
 
