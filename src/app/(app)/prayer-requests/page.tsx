@@ -14,19 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { IconButton, rowIcons } from "@/components/ui/icon-button";
+import { MemberPicker } from "@/components/member-picker";
 import { PRAYER_STATUS_LABELS } from "@/features/care/labels";
-import { Select } from "@/features/services/labels";
 import { usePaginatedList } from "@/hooks/use-paginated-list";
 import type { PublicUser } from "@/lib/auth-types";
-import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
 import { formatDisplayDate, readApiError } from "@/lib/ui";
-
-type MemberOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  membershipNumber: string;
-};
 
 type PrayerRow = {
   id: string;
@@ -71,17 +63,6 @@ export default function PrayerRequestsPage() {
   });
   const canManage = me.data?.permissions.includes("prayer:manage") ?? false;
 
-  const members = useQuery({
-    queryKey: ["members", "picker"],
-    enabled: canManage && createOpen,
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/v1/members?page=1&pageSize=${LOOKUP_PAGE_SIZE}`,
-      );
-      if (!response.ok) return { items: [] as MemberOption[] };
-      return (await response.json()) as { items: MemberOption[] };
-    },
-  });
   const requests = usePaginatedList<PrayerRow>({
     queryKey: ["prayer-requests"],
     url: "/api/v1/prayer-requests",
@@ -228,18 +209,13 @@ export default function PrayerRequestsPage() {
             </div>
             <div>
               <Label htmlFor="memberId">Member (optional)</Label>
-              <Select
+              <MemberPicker
                 id="memberId"
                 value={memberId}
-                onChange={(e) => setMemberId(e.target.value)}
-              >
-                <option value="">Anonymous</option>
-                {(members.data?.items ?? []).map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {memberLabel(member)}
-                  </option>
-                ))}
-              </Select>
+                onChange={setMemberId}
+                emptyLabel="Anonymous"
+                placeholder="Search members"
+              />
             </div>
             <div>
               <Label htmlFor="description">Description</Label>

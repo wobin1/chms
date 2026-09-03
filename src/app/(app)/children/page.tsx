@@ -113,6 +113,7 @@ export default function ChildrenPage() {
           data={children.items}
           emptyTitle="No children yet"
           emptyDescription="Register a child on a family of this church. More than one guardian can be set."
+          getRowHref={(row) => `/children/${row.id}`}
           pagination={{
             total: children.total,
             page: children.page,

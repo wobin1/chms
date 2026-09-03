@@ -20,8 +20,8 @@ import { useToast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GENDER_LABELS, Select } from "@/features/services/labels";
-import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
+import { MemberPicker } from "@/components/member-picker";
+import { GENDER_LABELS } from "@/features/services/labels";
 import { displayValue, formatDisplayDate, readApiError } from "@/lib/ui";
 
 type Guardian = {
@@ -49,13 +49,6 @@ type Child = {
   guardians: Guardian[];
 };
 
-type MemberOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  membershipNumber: string;
-};
-
 export default function ChildDetailPage() {
   const params = useParams<{ id: string }>();
   const toast = useToast();
@@ -70,16 +63,6 @@ export default function ChildDetailPage() {
       const response = await fetch(`/api/v1/children/${params.id}`);
       if (!response.ok) throw new Error("not found");
       return (await response.json()) as Child;
-    },
-  });
-  const members = useQuery({
-    queryKey: ["members", "picker"],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/v1/members?page=1&pageSize=${LOOKUP_PAGE_SIZE}`,
-      );
-      if (!response.ok) return { items: [] as MemberOption[] };
-      return (await response.json()) as { items: MemberOption[] };
     },
   });
 
@@ -243,20 +226,14 @@ export default function ChildDetailPage() {
               >
                 <div className="min-w-56 flex-1">
                   <Label htmlFor="member">Member</Label>
-                  <Select
+                  <MemberPicker
                     id="member"
                     value={memberId}
-                    onChange={(event) => setMemberId(event.target.value)}
+                    onChange={setMemberId}
+                    excludeIds={data.guardians.map((row) => row.memberId)}
+                    placeholder="Search members"
                     required
-                  >
-                    <option value="">Select a member of this church</option>
-                    {(members.data?.items ?? []).map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.lastName}, {member.firstName} (
-                        {member.membershipNumber})
-                      </option>
-                    ))}
-                  </Select>
+                  />
                 </div>
                 <div className="min-w-40">
                   <Label htmlFor="relationship">Relationship</Label>
@@ -277,6 +254,7 @@ export default function ChildDetailPage() {
                 data={data.guardians}
                 emptyTitle="No guardians yet"
                 emptyDescription="Add members of this church as guardians."
+                getRowHref={(row) => `/members/${row.member.id}`}
               />
             </SectionCard>
           </div>

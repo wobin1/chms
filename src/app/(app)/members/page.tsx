@@ -352,6 +352,7 @@ export default function MembersPage() {
           data={members.items}
           emptyTitle="No members yet"
           emptyDescription="Add a member for this church. Membership numbers are unique per church."
+          getRowHref={(row) => `/members/${row.id}`}
           pagination={{
             total: members.total,
             page: members.page,

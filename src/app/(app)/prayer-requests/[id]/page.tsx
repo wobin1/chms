@@ -16,18 +16,11 @@ import { useToast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MemberPicker } from "@/components/member-picker";
 import { PRAYER_STATUS_LABELS } from "@/features/care/labels";
 import { Select } from "@/features/services/labels";
 import type { PublicUser } from "@/lib/auth-types";
-import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
 import { displayValue, readApiError } from "@/lib/ui";
-
-type MemberOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  membershipNumber: string;
-};
 
 type PrayerRequest = {
   id: string;
@@ -83,17 +76,6 @@ export default function PrayerRequestPage() {
       setMemberId(data.memberId ?? "");
       setStatus(data.status);
       return data;
-    },
-  });
-  const members = useQuery({
-    queryKey: ["members", "picker"],
-    enabled: canManage && editing,
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/v1/members?page=1&pageSize=${LOOKUP_PAGE_SIZE}`,
-      );
-      if (!response.ok) return { items: [] as MemberOption[] };
-      return (await response.json()) as { items: MemberOption[] };
     },
   });
 
@@ -186,27 +168,25 @@ export default function PrayerRequestPage() {
                   </div>
                   <div>
                     <Label htmlFor="memberId">Member</Label>
-                    <Select
+                    <MemberPicker
                       id="memberId"
                       value={memberId}
-                      onChange={(e) => setMemberId(e.target.value)}
-                    >
-                      <option value="">Anonymous</option>
-                      {(members.data?.items ?? []).map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {memberLabel(member)}
-                        </option>
-                      ))}
-                      {data.memberId &&
-                      !(members.data?.items ?? []).some(
-                        (m) => m.id === data.memberId,
-                      ) &&
-                      data.member ? (
-                        <option value={data.memberId}>
-                          {memberLabel(data.member)}
-                        </option>
-                      ) : null}
-                    </Select>
+                      onChange={setMemberId}
+                      emptyLabel="Anonymous"
+                      placeholder="Search members"
+                      selectedOptions={
+                        data.member
+                          ? [
+                              {
+                                id: data.memberId ?? "",
+                                firstName: data.member.firstName,
+                                lastName: data.member.lastName,
+                                membershipNumber: data.member.membershipNumber,
+                              },
+                            ]
+                          : []
+                      }
+                    />
                   </div>
                   <div>
                     <Label htmlFor="status">Status</Label>

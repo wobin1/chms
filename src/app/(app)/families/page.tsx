@@ -137,6 +137,7 @@ export default function FamiliesPage() {
           data={families.items}
           emptyTitle="No families yet"
           emptyDescription="Add a family, then assign members of this church only."
+          getRowHref={(row) => `/families/${row.id}`}
           pagination={{
             total: families.total,
             page: families.page,

@@ -109,6 +109,7 @@ export default function UsersPage() {
           data={users.items}
           emptyTitle="No users yet"
           emptyDescription="Add a user for this church and assign a role."
+          getRowHref={(row) => `/admin/users/${row.id}`}
           pagination={{
             total: users.total,
             page: users.page,

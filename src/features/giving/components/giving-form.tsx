@@ -5,17 +5,12 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MemberPicker } from "@/components/member-picker";
 import { Select } from "@/features/services/labels";
 import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
 import { formatDisplayDate } from "@/lib/ui";
 
 type GivingType = { id: string; name: string; status: "ACTIVE" | "INACTIVE" };
-type MemberOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  membershipNumber: string;
-};
 type ServiceOption = { id: string; name: string; serviceDate: string };
 
 export type GivingFormValues = {
@@ -61,16 +56,6 @@ export function GivingForm({
       );
       if (!response.ok) return { items: [] as GivingType[] };
       return (await response.json()) as { items: GivingType[] };
-    },
-  });
-  const members = useQuery({
-    queryKey: ["members", "picker"],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/v1/members?page=1&pageSize=${LOOKUP_PAGE_SIZE}`,
-      );
-      if (!response.ok) return { items: [] as MemberOption[] };
-      return (await response.json()) as { items: MemberOption[] };
     },
   });
   const services = useQuery({
@@ -145,18 +130,13 @@ export function GivingForm({
         </div>
         <div>
           <Label htmlFor="memberId">Member (optional)</Label>
-          <Select
+          <MemberPicker
             id="memberId"
             value={form.memberId}
-            onChange={(e) => update("memberId", e.target.value)}
-          >
-            <option value="">Anonymous — no member</option>
-            {(members.data?.items ?? []).map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.lastName}, {member.firstName} ({member.membershipNumber})
-              </option>
-            ))}
-          </Select>
+            onChange={(memberId) => update("memberId", memberId)}
+            emptyLabel="Anonymous — no member"
+            placeholder="Search members"
+          />
         </div>
         <div>
           <Label htmlFor="serviceId">Service (optional)</Label>

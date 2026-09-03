@@ -173,6 +173,7 @@ export default function VisitorsPage() {
           data={visitors.items}
           emptyTitle="No visitors yet"
           emptyDescription="Register a visitor for this church, then link visits to a service."
+          getRowHref={(row) => `/visitors/${row.id}`}
           pagination={{
             total: visitors.total,
             page: visitors.page,

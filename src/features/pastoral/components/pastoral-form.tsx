@@ -10,15 +10,10 @@ import {
   PASTORAL_PRIORITY_LABELS,
   PASTORAL_STATUS_LABELS,
 } from "@/features/care/labels";
+import { MemberPicker } from "@/components/member-picker";
 import { Select } from "@/features/services/labels";
 import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
 
-type MemberOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  membershipNumber: string;
-};
 type UserOption = { id: string; name: string };
 
 export type PastoralFormValues = {
@@ -80,14 +75,6 @@ export function pastoralFormPayload(values: PastoralFormValues) {
   };
 }
 
-function memberLabel(member: {
-  firstName: string;
-  lastName: string;
-  membershipNumber: string;
-}) {
-  return `${member.lastName}, ${member.firstName} (${member.membershipNumber})`;
-}
-
 export function PastoralForm({
   initial,
   pending,
@@ -103,16 +90,6 @@ export function PastoralForm({
 }) {
   const [form, setForm] = useState(initial);
 
-  const members = useQuery({
-    queryKey: ["members", "picker"],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/v1/members?page=1&pageSize=${LOOKUP_PAGE_SIZE}`,
-      );
-      if (!response.ok) return { items: [] as MemberOption[] };
-      return (await response.json()) as { items: MemberOption[] };
-    },
-  });
   const users = useQuery({
     queryKey: ["users", "picker"],
     queryFn: async () => {
@@ -143,23 +120,13 @@ export function PastoralForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <Label htmlFor="memberId">Member</Label>
-          <Select
+          <MemberPicker
             id="memberId"
             value={form.memberId}
-            onChange={(e) => update("memberId", e.target.value)}
+            onChange={(memberId) => update("memberId", memberId)}
+            placeholder="Search members"
             required
-          >
-            <option value="">Select member</option>
-            {(members.data?.items ?? []).map((member) => (
-              <option key={member.id} value={member.id}>
-                {memberLabel(member)}
-              </option>
-            ))}
-            {form.memberId &&
-            !(members.data?.items ?? []).some((m) => m.id === form.memberId) ? (
-              <option value={form.memberId}>Current member</option>
-            ) : null}
-          </Select>
+          />
         </div>
         <div>
           <Label htmlFor="caseType">Case type</Label>

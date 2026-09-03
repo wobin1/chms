@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { familyMemberSchema } from "@/features/families/schema";
+import { parseFamilyMemberWrite } from "@/features/families/schema";
 import { toErrorResponse } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
-import { addFamilyMember, removeFamilyMember } from "@/lib/family-service";
+import {
+  addFamilyMember,
+  addFamilyMembers,
+  removeFamilyMember,
+} from "@/lib/family-service";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -10,9 +14,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const session = await requireSession();
     const { id } = await params;
-    const body = familyMemberSchema.parse(await req.json());
-    const row = await addFamilyMember(session, id, body);
-    return NextResponse.json(row, { status: 201 });
+    const { members } = parseFamilyMemberWrite(await req.json());
+    if (members.length === 1) {
+      const row = await addFamilyMember(session, id, members[0]);
+      return NextResponse.json(row, { status: 201 });
+    }
+    const rows = await addFamilyMembers(session, id, members);
+    return NextResponse.json({ items: rows }, { status: 201 });
   } catch (error) {
     return toErrorResponse(error);
   }

@@ -134,6 +134,7 @@ export default function ChurchesPage() {
           data={churches.items}
           emptyTitle="No churches yet"
           emptyDescription="Add a church to onboard the first congregation. Each church is an isolated tenant."
+          getRowHref={(row) => `/platform/churches/${row.id}`}
           pagination={{
             total: churches.total,
             page: churches.page,

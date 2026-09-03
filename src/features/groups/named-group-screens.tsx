@@ -25,8 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { IconButton, rowIcons } from "@/components/ui/icon-button";
+import { MemberPicker } from "@/components/member-picker";
 import { usePaginatedList } from "@/hooks/use-paginated-list";
-import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
 import { displayValue, readApiError } from "@/lib/ui";
 
 type GroupRow = {
@@ -51,13 +51,6 @@ type GroupMember = {
 type GroupDetail = GroupRow & {
   description: string | null;
   members: GroupMember[];
-};
-
-type MemberOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  membershipNumber: string;
 };
 
 export function NamedGroupListPage({
@@ -180,6 +173,7 @@ export function NamedGroupListPage({
           data={groups.items}
           emptyTitle={`No ${title.toLowerCase()} yet`}
           emptyDescription={`Add a ${singular} used by this church. Names are yours to choose.`}
+          getRowHref={(row) => `${hrefBase}/${row.id}`}
           pagination={{
             total: groups.total,
             page: groups.page,
@@ -247,16 +241,6 @@ export function NamedGroupDetailPage({
       const response = await fetch(`${apiPath}/${params.id}`);
       if (!response.ok) throw new Error("not found");
       return (await response.json()) as GroupDetail;
-    },
-  });
-  const members = useQuery({
-    queryKey: ["members", "picker"],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/v1/members?page=1&pageSize=${LOOKUP_PAGE_SIZE}`,
-      );
-      if (!response.ok) return { items: [] as MemberOption[] };
-      return (await response.json()) as { items: MemberOption[] };
     },
   });
 
@@ -515,19 +499,14 @@ export function NamedGroupDetailPage({
               >
                 <div className="min-w-56 flex-1">
                   <Label htmlFor="member">Member</Label>
-                  <Select
+                  <MemberPicker
                     id="member"
                     value={memberId}
-                    onChange={(e) => setMemberId(e.target.value)}
+                    onChange={setMemberId}
+                    excludeIds={data.members.map((row) => row.memberId)}
+                    placeholder="Search members"
                     required
-                  >
-                    <option value="">Select a member of this church</option>
-                    {(members.data?.items ?? []).map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.lastName}, {member.firstName} ({member.membershipNumber})
-                      </option>
-                    ))}
-                  </Select>
+                  />
                 </div>
                 <div className="min-w-40">
                   <Label htmlFor="role">Role</Label>
@@ -548,6 +527,7 @@ export function NamedGroupDetailPage({
                 data={data.members}
                 emptyTitle={`No members in this ${singular}`}
                 emptyDescription="Assign members of this church. A member can belong to more than one."
+                getRowHref={(row) => `/members/${row.member.id}`}
               />
             </SectionCard>
           </div>

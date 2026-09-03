@@ -8,8 +8,10 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { TablePagination } from "@/components/table-pagination";
+import { isNameColumnHeader } from "@/components/table-name-column";
 import { cn } from "@/lib/cn";
 import { computeStaggerDelay } from "@/lib/stagger-delay";
 
@@ -27,6 +29,8 @@ type DataTableProps<T> = {
   emptyTitle: string;
   emptyDescription: string;
   pagination?: TablePaginationConfig;
+  /** When set, cells in Name / Last name / First name columns link here. */
+  getRowHref?: (row: T) => string | null | undefined;
 };
 
 export function DataTable<T>({
@@ -35,6 +39,7 @@ export function DataTable<T>({
   emptyTitle,
   emptyDescription,
   pagination,
+  getRowHref,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const isEmpty = pagination ? pagination.total === 0 : data.length === 0;
@@ -106,11 +111,32 @@ export function DataTable<T>({
                 animationDelay: `${computeStaggerDelay(index, rows.length)}ms`,
               }}
             >
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="px-4 py-3 text-text">
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
+              {row.getVisibleCells().map((cell) => {
+                const content = flexRender(
+                  cell.column.columnDef.cell,
+                  cell.getContext(),
+                );
+                const href =
+                  getRowHref &&
+                  isNameColumnHeader(cell.column.columnDef.header)
+                    ? getRowHref(row.original)
+                    : null;
+
+                return (
+                  <td key={cell.id} className="px-4 py-3 text-text">
+                    {href ? (
+                      <Link
+                        href={href}
+                        className="font-medium text-accent hover:text-accent-hover hover:underline"
+                      >
+                        {content}
+                      </Link>
+                    ) : (
+                      content
+                    )}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>

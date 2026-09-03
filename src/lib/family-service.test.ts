@@ -100,6 +100,22 @@ describe("family service isolation", () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
+  it("rejects a batch that includes a member from another church", async () => {
+    familyFindFirst.mockResolvedValue({
+      id: "family-a",
+      churchId: "church-a",
+      members: [],
+    });
+    memberFindFirst.mockResolvedValue(null);
+    const { addFamilyMembers } = await import("./family-service");
+    await expect(
+      addFamilyMembers(churchAdmin, "family-a", [
+        { memberId: "member-b", relationship: "Child" },
+      ]),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(familyMemberCreate).not.toHaveBeenCalled();
+  });
+
   it("rejects a zone leader creating a family", async () => {
     const { createFamily } = await import("./family-service");
     await expect(

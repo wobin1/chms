@@ -453,6 +453,7 @@ export default function ZoneDetailPage() {
                 data={members.data?.items ?? []}
                 emptyTitle="No members in this zone"
                 emptyDescription="Assign members to this zone from the member profile."
+                getRowHref={(row) => `/members/${row.id}`}
               />
             </section>
           </div>

@@ -145,6 +145,7 @@ export default function ZonesPage() {
           data={zones.items}
           emptyTitle="No zones yet"
           emptyDescription="Add a zone name used by this church. Names are yours to choose."
+          getRowHref={(row) => `/zones/${row.id}`}
           pagination={{
             total: zones.total,
             page: zones.page,

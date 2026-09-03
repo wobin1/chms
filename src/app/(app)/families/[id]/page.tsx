@@ -14,14 +14,18 @@ import {
   ProfileHero,
   SectionCard,
 } from "@/components/detail/layout";
+import { MemberPicker } from "@/components/member-picker";
+import { RelationshipSelect } from "@/components/relationship-select";
 import { QueryState } from "@/components/query-state";
 import { useToast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { IconButton, rowIcons } from "@/components/ui/icon-button";
-import { Select } from "@/features/services/labels";
-import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
+import {
+  type FamilyRelationshipSelection,
+  relationshipValueFromPreset,
+} from "@/features/families/relationship";
 import { displayValue, readApiError } from "@/lib/ui";
 
 type FamilyMember = {
@@ -54,20 +58,15 @@ type FamilyChild = {
   }[];
 };
 
-type MemberOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  membershipNumber: string;
-};
-
 export default function FamilyDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [memberId, setMemberId] = useState("");
-  const [relationship, setRelationship] = useState("");
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [relationshipPreset, setRelationshipPreset] =
+    useState<FamilyRelationshipSelection>("");
+  const [relationshipOther, setRelationshipOther] = useState("");
   const [removeTarget, setRemoveTarget] = useState<FamilyMember | null>(null);
   const [childFirst, setChildFirst] = useState("");
   const [childLast, setChildLast] = useState("");
@@ -87,16 +86,10 @@ export default function FamilyDetailPage() {
       return (await response.json()) as Family;
     },
   });
-  const members = useQuery({
-    queryKey: ["members", "picker"],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/v1/members?page=1&pageSize=${LOOKUP_PAGE_SIZE}`,
-      );
-      if (!response.ok) return { items: [] as MemberOption[] };
-      return (await response.json()) as { items: MemberOption[] };
-    },
-  });
+  const relationship = relationshipValueFromPreset(
+    relationshipPreset,
+    relationshipOther,
+  );
 
   useEffect(() => {
     if (family.data && !editing) {
@@ -129,16 +122,22 @@ export default function FamilyDetailPage() {
       const response = await fetch(`/api/v1/families/${params.id}/members`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ memberId, relationship }),
+        body: JSON.stringify({ memberIds, relationship }),
       });
       if (!response.ok) {
         throw new Error(await readApiError(response, "Unable to add member"));
       }
     },
     onSuccess: () => {
-      toast("success", "Member added to family.");
-      setMemberId("");
-      setRelationship("");
+      toast(
+        "success",
+        memberIds.length > 1
+          ? "Members added to family."
+          : "Member added to family.",
+      );
+      setMemberIds([]);
+      setRelationshipPreset("");
+      setRelationshipOther("");
       void queryClient.invalidateQueries({ queryKey: ["families", params.id] });
       void queryClient.invalidateQueries({ queryKey: ["members"] });
     },
@@ -376,47 +375,55 @@ export default function FamilyDetailPage() {
               description="Members linked to this family in this church."
             >
               <form
-                className="mb-4 flex flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:items-end"
+                className="mb-4 space-y-3 border-b border-border pb-5"
                 onSubmit={(event) => {
                   event.preventDefault();
                   addMember.mutate();
                 }}
               >
-                <div className="min-w-0 flex-1">
-                  <Label htmlFor="member">Member</Label>
-                  <Select
+                <div>
+                  <Label htmlFor="member">Members</Label>
+                  <MemberPicker
                     id="member"
-                    value={memberId}
-                    onChange={(e) => setMemberId(e.target.value)}
-                    required
-                  >
-                    <option value="">Select a member of this church</option>
-                    {(members.data?.items ?? []).map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.lastName}, {member.firstName} ({member.membershipNumber})
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="min-w-40">
-                  <Label htmlFor="relationship">Relationship</Label>
-                  <Input
-                    id="relationship"
-                    value={relationship}
-                    onChange={(e) => setRelationship(e.target.value)}
-                    placeholder="Head, Spouse, Child"
+                    multiple
+                    value={memberIds}
+                    onChange={setMemberIds}
+                    excludeIds={family.data.members.map((row) => row.memberId)}
+                    placeholder="Search and select members"
                     required
                   />
                 </div>
-                <Button type="submit" loading={addMember.isPending} disabled={addMember.isPending || !memberId}>
-                      Add member
-                    </Button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="min-w-40 flex-1">
+                    <Label htmlFor="relationship">Relationship</Label>
+                    <RelationshipSelect
+                      id="relationship"
+                      preset={relationshipPreset}
+                      otherText={relationshipOther}
+                      onPresetChange={setRelationshipPreset}
+                      onOtherTextChange={setRelationshipOther}
+                      required
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    loading={addMember.isPending}
+                    disabled={
+                      addMember.isPending ||
+                      memberIds.length === 0 ||
+                      !relationship
+                    }
+                  >
+                    Add members
+                  </Button>
+                </div>
               </form>
               <DataTable
                 columns={columns}
                 data={family.data.members}
                 emptyTitle="No members in this family"
                 emptyDescription="Add members who belong to this church."
+                getRowHref={(row) => `/members/${row.member.id}`}
               />
             </SectionCard>
 
@@ -454,19 +461,13 @@ export default function FamilyDetailPage() {
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="min-w-48 flex-1">
                     <Label htmlFor="guardian1">Guardian</Label>
-                    <Select
+                    <MemberPicker
                       id="guardian1"
                       value={guardian1Id}
-                      onChange={(event) => setGuardian1Id(event.target.value)}
-                    >
-                      <option value="">Optional — member of this church</option>
-                      {(members.data?.items ?? []).map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.lastName}, {member.firstName} (
-                          {member.membershipNumber})
-                        </option>
-                      ))}
-                    </Select>
+                      onChange={setGuardian1Id}
+                      emptyLabel="Optional — member of this church"
+                      placeholder="Search members"
+                    />
                   </div>
                   <div className="min-w-32">
                     <Label htmlFor="guardian1Rel">Relationship</Label>
@@ -478,19 +479,13 @@ export default function FamilyDetailPage() {
                   </div>
                   <div className="min-w-48 flex-1">
                     <Label htmlFor="guardian2">Second guardian</Label>
-                    <Select
+                    <MemberPicker
                       id="guardian2"
                       value={guardian2Id}
-                      onChange={(event) => setGuardian2Id(event.target.value)}
-                    >
-                      <option value="">Optional — another member</option>
-                      {(members.data?.items ?? []).map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.lastName}, {member.firstName} (
-                          {member.membershipNumber})
-                        </option>
-                      ))}
-                    </Select>
+                      onChange={setGuardian2Id}
+                      emptyLabel="Optional — another member"
+                      placeholder="Search members"
+                    />
                   </div>
                   <div className="min-w-32">
                     <Label htmlFor="guardian2Rel">Relationship</Label>
@@ -510,6 +505,7 @@ export default function FamilyDetailPage() {
                 data={family.data.children}
                 emptyTitle="No children on this family"
                 emptyDescription="Register a child here. More than one guardian can be set, from this church only."
+                getRowHref={(row) => `/children/${row.id}`}
               />
             </SectionCard>
           </div>

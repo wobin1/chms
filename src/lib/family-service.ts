@@ -1,7 +1,7 @@
 import "server-only";
 import { writeAuditLog } from "./audit";
 import type { AuthContext } from "./auth-types";
-import { NotFoundError } from "./errors";
+import { NotFoundError, ValidationError } from "./errors";
 import { prisma } from "./db";
 import { assertMemberBelongsToChurch } from "./member-rules";
 import { requirePermission } from "./permissions";
@@ -192,6 +192,22 @@ export async function addFamilyMember(
   } catch (error) {
     throwIfUniqueConflict(error, "This member already belongs to a family");
   }
+}
+
+export async function addFamilyMembers(
+  session: AuthContext,
+  familyId: string,
+  members: { memberId: string; relationship: string }[],
+) {
+  const uniqueIds = [...new Set(members.map((row) => row.memberId))];
+  if (uniqueIds.length !== members.length) {
+    throw new ValidationError("Duplicate members in this family assignment");
+  }
+  const rows = [];
+  for (const row of members) {
+    rows.push(await addFamilyMember(session, familyId, row));
+  }
+  return rows;
 }
 
 export async function removeFamilyMember(

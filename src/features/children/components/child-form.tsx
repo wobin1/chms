@@ -5,17 +5,12 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MemberPicker } from "@/components/member-picker";
 import { GENDER_LABELS, Select } from "@/features/services/labels";
 import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
 import { toDateInputValue } from "@/lib/ui";
 
 type FamilyOption = { id: string; name: string };
-type MemberOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  membershipNumber: string;
-};
 
 export type ChildFormValues = {
   familyId: string;
@@ -143,17 +138,6 @@ export function ChildForm({
     },
     enabled: mode === "create",
   });
-  const members = useQuery({
-    queryKey: ["members", "picker"],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/v1/members?page=1&pageSize=${LOOKUP_PAGE_SIZE}`,
-      );
-      if (!response.ok) return { items: [] as MemberOption[] };
-      return (await response.json()) as { items: MemberOption[] };
-    },
-    enabled: mode === "create",
-  });
 
   function update<K extends keyof ChildFormValues>(key: K, value: ChildFormValues[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -276,18 +260,13 @@ export function ChildForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="guardian1Id">Guardian</Label>
-              <Select
+              <MemberPicker
                 id="guardian1Id"
                 value={form.guardian1Id}
-                onChange={(e) => update("guardian1Id", e.target.value)}
-              >
-                <option value="">Optional — member of this church</option>
-                {(members.data?.items ?? []).map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.lastName}, {member.firstName} ({member.membershipNumber})
-                  </option>
-                ))}
-              </Select>
+                onChange={(memberId) => update("guardian1Id", memberId)}
+                emptyLabel="Optional — member of this church"
+                placeholder="Search members"
+              />
             </div>
             <div>
               <Label htmlFor="guardian1Rel">Relationship</Label>
@@ -300,18 +279,13 @@ export function ChildForm({
             </div>
             <div>
               <Label htmlFor="guardian2Id">Second guardian</Label>
-              <Select
+              <MemberPicker
                 id="guardian2Id"
                 value={form.guardian2Id}
-                onChange={(e) => update("guardian2Id", e.target.value)}
-              >
-                <option value="">Optional — another member</option>
-                {(members.data?.items ?? []).map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.lastName}, {member.firstName} ({member.membershipNumber})
-                  </option>
-                ))}
-              </Select>
+                onChange={(memberId) => update("guardian2Id", memberId)}
+                emptyLabel="Optional — another member"
+                placeholder="Search members"
+              />
             </div>
             <div>
               <Label htmlFor="guardian2Rel">Relationship</Label>

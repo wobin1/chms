@@ -5,16 +5,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MemberPicker } from "@/components/member-picker";
 import { Select } from "@/features/services/labels";
-import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
 
 type Role = { id: string; name: string };
-type MemberOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  membershipNumber: string;
-};
 
 export type UserFormValues = {
   name: string;
@@ -71,16 +65,6 @@ export function UserForm({
       const response = await fetch("/api/v1/roles");
       if (!response.ok) return { items: [] as Role[] };
       return (await response.json()) as { items: Role[] };
-    },
-  });
-  const members = useQuery({
-    queryKey: ["members", "user-link"],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/v1/members?page=1&pageSize=${LOOKUP_PAGE_SIZE}`,
-      );
-      if (!response.ok) return { items: [] as MemberOption[] };
-      return (await response.json()) as { items: MemberOption[] };
     },
   });
 
@@ -148,18 +132,13 @@ export function UserForm({
         </div>
         <div className={mode === "create" ? "sm:col-span-2" : ""}>
           <Label htmlFor="memberId">Link to member (optional)</Label>
-          <Select
+          <MemberPicker
             id="memberId"
             value={form.memberId}
-            onChange={(e) => update("memberId", e.target.value)}
-          >
-            <option value="">Not linked</option>
-            {(members.data?.items ?? []).map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.lastName}, {member.firstName} ({member.membershipNumber})
-              </option>
-            ))}
-          </Select>
+            onChange={(memberId) => update("memberId", memberId)}
+            emptyLabel="Not linked"
+            placeholder="Search members"
+          />
           <p className="mt-1 text-xs text-text-muted">
             Only members of this church can be linked.
           </p>
