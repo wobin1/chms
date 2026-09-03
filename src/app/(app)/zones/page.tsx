@@ -180,7 +180,6 @@ export default function ZonesPage() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Hope"
             required
-            autoFocus
           />
           {error ? (
             <p className="mt-2 text-sm text-danger" role="alert">

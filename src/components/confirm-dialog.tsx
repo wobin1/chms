@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
+import { pickDialogInitialFocus } from "@/components/dialog-focus";
 import { Button } from "@/components/ui/button";
 
 export function ConfirmDialog({
@@ -25,26 +26,36 @@ export function ConfirmDialog({
 }) {
   const titleId = useId();
   const descriptionId = useId();
-  const cancelRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const onCancelRef = useRef(onCancel);
+  const pendingRef = useRef(pending);
+
+  onCancelRef.current = onCancel;
+  pendingRef.current = pending;
 
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
-    cancelRef.current?.focus();
+    const frame = window.requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      pickDialogInitialFocus(panel)?.focus();
+    });
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !pending) {
-        onCancel();
+      if (event.key === "Escape" && !pendingRef.current) {
+        onCancelRef.current();
       }
     }
     document.addEventListener("keydown", onKeyDown);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
+      window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
       previous?.focus?.();
     };
-  }, [open, pending, onCancel]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -59,6 +70,7 @@ export function ConfirmDialog({
       }}
     >
       <div
+        ref={panelRef}
         className="w-full max-w-md motion-dialog rounded-xl border border-border bg-surface p-6 shadow-sm"
         role="dialog"
         aria-modal="true"
@@ -72,15 +84,11 @@ export function ConfirmDialog({
           {description}
         </p>
         <div className="mt-6 flex justify-end gap-2">
-          <Button
-            ref={cancelRef}
-            variant="secondary"
-            onClick={onCancel}
-            disabled={pending}
-          >
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={pending}>
             Cancel
           </Button>
           <Button
+            type="button"
             variant={danger ? "danger" : "primary"}
             onClick={onConfirm}
             loading={pending}
