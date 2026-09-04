@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   emptyMemberForm,
+  memberFormClientError,
   memberFormFromRecord,
   memberFormPayload,
 } from "./member-form-values";
@@ -86,5 +87,31 @@ describe("member form values", () => {
     const payload = memberFormPayload(emptyMemberForm());
     expect(payload).not.toHaveProperty("familyId");
     expect(payload).not.toHaveProperty("family");
+  });
+});
+
+describe("memberFormClientError", () => {
+  it("requires a membership status before save", () => {
+    expect(
+      memberFormClientError({
+        ...emptyMemberForm(),
+        membershipNumber: "M-1",
+        firstName: "Ada",
+        lastName: "Okeke",
+        membershipStatusId: "",
+      }),
+    ).toBe("Choose a membership status.");
+  });
+
+  it("returns null when required fields are present", () => {
+    expect(
+      memberFormClientError({
+        ...emptyMemberForm(),
+        membershipNumber: "M-1",
+        firstName: "Ada",
+        lastName: "Okeke",
+        membershipStatusId: "11111111-1111-1111-1111-111111111111",
+      }),
+    ).toBeNull();
   });
 });

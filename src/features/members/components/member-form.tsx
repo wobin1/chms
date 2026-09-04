@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PhotoUpload } from "@/components/photo-upload";
 import { useToast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { GENDER_LABELS } from "@/features/services/labels";
 import {
   emptyMemberForm,
+  memberFormClientError,
   memberFormFromRecord,
   memberFormPayload,
   type MemberFormValue,
@@ -83,20 +84,37 @@ export function MemberForm({
   });
 
   const entityId = memberId ?? "00000000-0000-0000-0000-000000000001";
+  const invalidToastArmed = useRef(true);
 
   function update<K extends keyof MemberFormValue>(
     key: K,
     value: MemberFormValue[K],
   ) {
     setForm((current) => ({ ...current, [key]: value }));
+    if (error) setError(null);
   }
 
   return (
     <form
       className="max-w-2xl space-y-6 rounded-xl border border-border bg-surface p-6 shadow-sm"
       aria-busy={save.isPending}
+      onInvalidCapture={() => {
+        if (!invalidToastArmed.current) return;
+        invalidToastArmed.current = false;
+        toast("error", "Please complete the required fields.");
+        window.setTimeout(() => {
+          invalidToastArmed.current = true;
+        }, 0);
+      }}
       onSubmit={(event) => {
         event.preventDefault();
+        const clientError = memberFormClientError(form);
+        if (clientError) {
+          setError(clientError);
+          toast("error", clientError);
+          return;
+        }
+        setError(null);
         save.mutate();
       }}
     >
@@ -261,6 +279,7 @@ export function MemberForm({
           <Select
             id="status"
             required
+            requiredLabel="membership status"
             value={form.membershipStatusId}
             onChange={(e) => update("membershipStatusId", e.target.value)}
           >

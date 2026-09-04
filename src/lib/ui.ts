@@ -1,8 +1,28 @@
-export async function readApiError(response: Response, fallback: string) {
-  const body = (await response.json().catch(() => null)) as {
-    error?: string;
-  } | null;
+type ApiErrorBody = {
+  error?: string;
+  details?: {
+    fieldErrors?: Record<string, string[] | undefined>;
+    formErrors?: string[];
+  };
+} | null;
+
+export function formatApiErrorBody(body: ApiErrorBody, fallback: string) {
+  const fieldMessages = Object.entries(body?.details?.fieldErrors ?? {}).flatMap(
+    ([field, messages]) => (messages ?? []).map((message) => `${field}: ${message}`),
+  );
+  if (fieldMessages.length > 0) {
+    return fieldMessages.slice(0, 3).join("; ");
+  }
+  const formMessages = body?.details?.formErrors?.filter(Boolean) ?? [];
+  if (formMessages.length > 0) {
+    return formMessages.slice(0, 3).join("; ");
+  }
   return body?.error ?? fallback;
+}
+
+export async function readApiError(response: Response, fallback: string) {
+  const body = (await response.json().catch(() => null)) as ApiErrorBody;
+  return formatApiErrorBody(body, fallback);
 }
 
 export function formatDisplayDate(value: string | null | undefined) {

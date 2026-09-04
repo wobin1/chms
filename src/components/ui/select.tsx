@@ -24,6 +24,7 @@ import {
   SELECT_PANEL_MAX_HEIGHT,
   type SelectPanelPlacement,
 } from "./select-position";
+import { messageForRequiredSelect } from "./select-validity";
 
 export type SelectOption = {
   value: string;
@@ -76,6 +77,8 @@ type SelectProps = {
   onChange?: (event: ChangeEvent<HTMLSelectElement>) => void;
   disabled?: boolean;
   required?: boolean;
+  /** Used in the visible required-field message (e.g. "membership status"). */
+  requiredLabel?: string;
   compact?: boolean;
   className?: string;
   placeholder?: string;
@@ -103,6 +106,7 @@ export function Select({
   onChange,
   disabled = false,
   required = false,
+  requiredLabel,
   compact = false,
   className,
   placeholder = "Select…",
@@ -112,9 +116,11 @@ export function Select({
 }: SelectProps) {
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [requiredError, setRequiredError] = useState<string | null>(null);
   const [panelStyle, setPanelStyle] = useState<{
     top: number;
     left: number;
@@ -169,10 +175,19 @@ export function Select({
     (option: SelectOption) => {
       if (option.disabled) return;
       emitChange(onChange, option.value);
+      if (option.value !== "") {
+        setRequiredError(null);
+      }
       close();
     },
     [close, onChange],
   );
+
+  useEffect(() => {
+    if (stringValue !== "") {
+      setRequiredError(null);
+    }
+  }, [stringValue]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -350,6 +365,7 @@ export function Select({
   return (
     <div ref={rootRef} className={cn("relative", compact ? "w-auto" : "w-full")}>
       <button
+        ref={triggerRef}
         id={id}
         type="button"
         disabled={disabled}
@@ -358,12 +374,14 @@ export function Select({
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
         aria-required={required || undefined}
+        aria-invalid={requiredError ? true : undefined}
         className={cn(
           selectClassName,
           "inline-flex items-center justify-between gap-2 text-left",
           compact && "h-10 w-auto min-w-[10rem]",
           disabled && "cursor-not-allowed opacity-60",
           !selected && "text-text-muted",
+          requiredError && "border-danger",
           open && "border-accent shadow-[0_0_0_2px_var(--accent-soft)]",
           className,
         )}
@@ -387,7 +405,18 @@ export function Select({
           value={stringValue}
           required
           onChange={() => {}}
+          onInvalid={(event) => {
+            event.preventDefault();
+            const message = messageForRequiredSelect(requiredLabel);
+            setRequiredError(message);
+            triggerRef.current?.focus();
+          }}
         />
+      ) : null}
+      {requiredError ? (
+        <p className="mt-1.5 text-sm text-danger" role="alert">
+          {requiredError}
+        </p>
       ) : null}
       {panel}
     </div>

@@ -93,6 +93,23 @@ export function memberFormFromRecord(record: {
   };
 }
 
+/** Client-side checks that HTML5 may miss (custom Select required fields). */
+export function memberFormClientError(values: MemberFormValue): string | null {
+  if (!values.membershipNumber.trim()) {
+    return "Enter a membership number.";
+  }
+  if (!values.firstName.trim()) {
+    return "Enter a first name.";
+  }
+  if (!values.lastName.trim()) {
+    return "Enter a last name.";
+  }
+  if (!values.membershipStatusId.trim()) {
+    return "Choose a membership status.";
+  }
+  return null;
+}
+
 export function memberFormPayload(values: MemberFormValue) {
   return {
     membershipNumber: values.membershipNumber,
