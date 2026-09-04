@@ -5,21 +5,29 @@ import { useParams } from "next/navigation";
 import { BackLink } from "@/components/back-link";
 import { MemberForm } from "@/features/members/components/member-form";
 import { QueryState } from "@/components/query-state";
+import type { MemberGenderValue } from "@/features/members/member-form-values";
 
 type Member = {
   id: string;
   membershipNumber: string;
   firstName: string;
+  middleName: string | null;
   lastName: string;
+  gender: MemberGenderValue;
+  dateOfBirth: string | null;
   phone: string | null;
   email: string | null;
   address: string | null;
   city: string | null;
+  state: string | null;
+  occupation: string | null;
+  maritalStatus: string | null;
   dateJoined: string | null;
   photoUrl: string | null;
   photoPublicId: string | null;
   zoneId: string | null;
   membershipStatusId: string;
+  notes: string | null;
 };
 
 export default function EditMemberPage() {
@@ -46,20 +54,7 @@ export default function EditMemberPage() {
         {member.data ? (
           <MemberForm
             memberId={member.data.id}
-            initial={{
-              membershipNumber: member.data.membershipNumber,
-              firstName: member.data.firstName,
-              lastName: member.data.lastName,
-              phone: member.data.phone ?? "",
-              email: member.data.email ?? "",
-              address: member.data.address ?? "",
-              city: member.data.city ?? "",
-              dateJoined: member.data.dateJoined ?? "",
-              membershipStatusId: member.data.membershipStatusId,
-              zoneId: member.data.zoneId ?? "",
-              photoUrl: member.data.photoUrl ?? "",
-              photoPublicId: member.data.photoPublicId ?? "",
-            }}
+            initial={member.data}
           />
         ) : null}
       </QueryState>

@@ -7,6 +7,7 @@ import { Mail, MapPin, Phone } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { QueryState } from "@/components/query-state";
 import { Button } from "@/components/ui/button";
+import { GENDER_LABELS } from "@/features/services/labels";
 import { displayValue, formatDisplayDate } from "@/lib/ui";
 import type { PublicUser } from "@/lib/auth-types";
 
@@ -31,16 +32,16 @@ type Member = {
   deletedAt: string | null;
   zone: { name: string } | null;
   membershipStatus: { name: string };
-  familyMembers: { family: { id: string; name: string } }[];
+  familyMembers: {
+    relationship: string;
+    family: { id: string; name: string };
+  }[];
   departments: { department: { id: string; name: string } }[];
   ministries: { ministry: { id: string; name: string } }[];
 };
 
 function genderLabel(gender: string) {
-  if (gender === "FEMALE") return "Female";
-  if (gender === "MALE") return "Male";
-  if (gender === "OTHER") return "Other";
-  return "—";
+  return GENDER_LABELS[gender as keyof typeof GENDER_LABELS] ?? "—";
 }
 
 function initials(first: string, last: string) {
@@ -210,10 +211,26 @@ export default function MemberProfilePage() {
                   <Field label="Membership number" value={data.membershipNumber} />
                   <Field label="Status" value={data.membershipStatus.name} />
                   <Field label="Zone" value={data.zone?.name ?? "Unassigned"} />
-                  <Field
-                    label="Family"
-                    value={data.familyMembers?.[0]?.family.name ?? "—"}
-                  />
+                  <div>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                      Family
+                    </dt>
+                    <dd className="mt-1 text-sm text-text">
+                      {data.familyMembers?.[0] ? (
+                        <Link
+                          href={`/families/${data.familyMembers[0].family.id}`}
+                          className="text-accent hover:underline"
+                        >
+                          {data.familyMembers[0].family.name}
+                          {data.familyMembers[0].relationship
+                            ? ` · ${data.familyMembers[0].relationship}`
+                            : ""}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </dd>
+                  </div>
                   <Field
                     label="Departments"
                     value={

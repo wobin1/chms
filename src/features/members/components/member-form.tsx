@@ -9,51 +9,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { GENDER_LABELS } from "@/features/services/labels";
+import {
+  emptyMemberForm,
+  memberFormFromRecord,
+  memberFormPayload,
+  type MemberFormValue,
+} from "@/features/members/member-form-values";
 import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
-import { readApiError, toDateInputValue } from "@/lib/ui";
+import { readApiError } from "@/lib/ui";
 
 type Zone = { id: string; name: string };
 type Status = { id: string; name: string };
 
-export type MemberFormValue = {
-  membershipNumber: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  email: string;
-  address: string;
-  city: string;
-  dateJoined: string;
-  membershipStatusId: string;
-  zoneId: string;
-  photoUrl: string;
-  photoPublicId: string;
-};
+export type { MemberFormValue };
 
 export function MemberForm({
   initial,
   memberId,
 }: {
-  initial?: Partial<MemberFormValue>;
+  initial?: Parameters<typeof memberFormFromRecord>[0];
   memberId?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<MemberFormValue>({
-    membershipNumber: initial?.membershipNumber ?? "",
-    firstName: initial?.firstName ?? "",
-    lastName: initial?.lastName ?? "",
-    phone: initial?.phone ?? "",
-    email: initial?.email ?? "",
-    address: initial?.address ?? "",
-    city: initial?.city ?? "",
-    dateJoined: toDateInputValue(initial?.dateJoined),
-    membershipStatusId: initial?.membershipStatusId ?? "",
-    zoneId: initial?.zoneId ?? "",
-    photoUrl: initial?.photoUrl ?? "",
-    photoPublicId: initial?.photoPublicId ?? "",
-  });
+  const [form, setForm] = useState<MemberFormValue>(() =>
+    initial ? memberFormFromRecord(initial) : emptyMemberForm(),
+  );
 
   const zones = useQuery({
     queryKey: ["zones"],
@@ -76,26 +59,12 @@ export function MemberForm({
 
   const save = useMutation({
     mutationFn: async () => {
-      const payload = {
-        membershipNumber: form.membershipNumber,
-        firstName: form.firstName,
-        lastName: form.lastName,
-        phone: form.phone.trim() || null,
-        email: form.email.trim() || null,
-        address: form.address.trim() || null,
-        city: form.city.trim() || null,
-        dateJoined: form.dateJoined || null,
-        membershipStatusId: form.membershipStatusId,
-        zoneId: form.zoneId || null,
-        photoUrl: form.photoUrl || null,
-        photoPublicId: form.photoPublicId || null,
-      };
       const response = await fetch(
         memberId ? `/api/v1/members/${memberId}` : "/api/v1/members",
         {
           method: memberId ? "PATCH" : "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(memberFormPayload(form)),
         },
       );
       if (!response.ok) {
@@ -114,6 +83,13 @@ export function MemberForm({
   });
 
   const entityId = memberId ?? "00000000-0000-0000-0000-000000000001";
+
+  function update<K extends keyof MemberFormValue>(
+    key: K,
+    value: MemberFormValue[K],
+  ) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
 
   return (
     <form
@@ -151,9 +127,7 @@ export function MemberForm({
               id="membershipNumber"
               required
               value={form.membershipNumber}
-              onChange={(e) =>
-                setForm({ ...form, membershipNumber: e.target.value })
-              }
+              onChange={(e) => update("membershipNumber", e.target.value)}
             />
           </div>
           <div>
@@ -162,20 +136,74 @@ export function MemberForm({
               id="firstName"
               required
               value={form.firstName}
-              onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+              onChange={(e) => update("firstName", e.target.value)}
             />
           </div>
           <div>
+            <Label htmlFor="middleName">Middle name</Label>
+            <Input
+              id="middleName"
+              value={form.middleName}
+              onChange={(e) => update("middleName", e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
             <Label htmlFor="lastName">Last name</Label>
             <Input
               id="lastName"
               required
               value={form.lastName}
-              onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+              onChange={(e) => update("lastName", e.target.value)}
             />
           </div>
         </div>
       </div>
+
+      <fieldset className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
+        <legend className="mb-2 text-sm font-semibold text-text">Profile</legend>
+        <div>
+          <Label htmlFor="gender">Gender</Label>
+          <Select
+            id="gender"
+            value={form.gender}
+            onChange={(e) =>
+              update("gender", e.target.value as MemberFormValue["gender"])
+            }
+          >
+            {Object.entries(GENDER_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="dateOfBirth">Date of birth</Label>
+          <Input
+            id="dateOfBirth"
+            type="date"
+            value={form.dateOfBirth}
+            onChange={(e) => update("dateOfBirth", e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="occupation">Occupation</Label>
+          <Input
+            id="occupation"
+            value={form.occupation}
+            onChange={(e) => update("occupation", e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="maritalStatus">Marital status</Label>
+          <Input
+            id="maritalStatus"
+            value={form.maritalStatus}
+            onChange={(e) => update("maritalStatus", e.target.value)}
+            placeholder="Single, Married, …"
+          />
+        </div>
+      </fieldset>
 
       <fieldset className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
         <legend className="mb-2 text-sm font-semibold text-text">Contact</legend>
@@ -187,7 +215,7 @@ export function MemberForm({
             autoComplete="tel"
             placeholder="0803 000 0000"
             value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            onChange={(e) => update("phone", e.target.value)}
           />
         </div>
         <div>
@@ -197,7 +225,7 @@ export function MemberForm({
             type="email"
             autoComplete="email"
             value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            onChange={(e) => update("email", e.target.value)}
           />
         </div>
         <div className="sm:col-span-2">
@@ -205,7 +233,7 @@ export function MemberForm({
           <Input
             id="address"
             value={form.address}
-            onChange={(e) => setForm({ ...form, address: e.target.value })}
+            onChange={(e) => update("address", e.target.value)}
           />
         </div>
         <div>
@@ -213,16 +241,15 @@ export function MemberForm({
           <Input
             id="city"
             value={form.city}
-            onChange={(e) => setForm({ ...form, city: e.target.value })}
+            onChange={(e) => update("city", e.target.value)}
           />
         </div>
         <div>
-          <Label htmlFor="dateJoined">Date joined</Label>
+          <Label htmlFor="state">State</Label>
           <Input
-            id="dateJoined"
-            type="date"
-            value={form.dateJoined}
-            onChange={(e) => setForm({ ...form, dateJoined: e.target.value })}
+            id="state"
+            value={form.state}
+            onChange={(e) => update("state", e.target.value)}
           />
         </div>
       </fieldset>
@@ -235,9 +262,7 @@ export function MemberForm({
             id="status"
             required
             value={form.membershipStatusId}
-            onChange={(e) =>
-              setForm({ ...form, membershipStatusId: e.target.value })
-            }
+            onChange={(e) => update("membershipStatusId", e.target.value)}
           >
             <option value="">Select status</option>
             {(statuses.data?.items ?? []).map((status) => (
@@ -252,7 +277,7 @@ export function MemberForm({
           <Select
             id="zone"
             value={form.zoneId}
-            onChange={(e) => setForm({ ...form, zoneId: e.target.value })}
+            onChange={(e) => update("zoneId", e.target.value)}
           >
             <option value="">Unassigned</option>
             {(zones.data?.items ?? []).map((zone) => (
@@ -262,7 +287,31 @@ export function MemberForm({
             ))}
           </Select>
         </div>
+        <div>
+          <Label htmlFor="dateJoined">Date joined</Label>
+          <Input
+            id="dateJoined"
+            type="date"
+            value={form.dateJoined}
+            onChange={(e) => update("dateJoined", e.target.value)}
+          />
+        </div>
+        <p className="sm:col-span-2 text-sm text-text-muted">
+          Family is assigned from Families — when this member is added to a
+          family, it appears on their profile.
+        </p>
       </fieldset>
+
+      <div>
+        <Label htmlFor="notes">Notes</Label>
+        <textarea
+          id="notes"
+          rows={3}
+          value={form.notes}
+          onChange={(e) => update("notes", e.target.value)}
+          className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        />
+      </div>
 
       <Button type="submit" loading={save.isPending} disabled={save.isPending}>
         Save member
