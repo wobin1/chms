@@ -14,6 +14,7 @@ import {
   ProfileHero,
   SectionCard,
 } from "@/components/detail/layout";
+import { FormDialog } from "@/components/form-dialog";
 import { MemberPicker } from "@/components/member-picker";
 import { RelationshipSelect } from "@/components/relationship-select";
 import { QueryState } from "@/components/query-state";
@@ -22,6 +23,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { IconButton, rowIcons } from "@/components/ui/icon-button";
+import {
+  buildFamilyChildGuardians,
+  familyAddChildFormReady,
+} from "@/features/families/add-child-form";
 import {
   type FamilyRelationshipSelection,
   relationshipValueFromPreset,
@@ -68,6 +73,7 @@ export default function FamilyDetailPage() {
     useState<FamilyRelationshipSelection>("");
   const [relationshipOther, setRelationshipOther] = useState("");
   const [removeTarget, setRemoveTarget] = useState<FamilyMember | null>(null);
+  const [addChildOpen, setAddChildOpen] = useState(false);
   const [childFirst, setChildFirst] = useState("");
   const [childLast, setChildLast] = useState("");
   const [guardian1Id, setGuardian1Id] = useState("");
@@ -163,18 +169,21 @@ export default function FamilyDetailPage() {
     onError: (err) => toast("error", err.message),
   });
 
+  function resetAddChildForm() {
+    setChildFirst("");
+    setChildLast("");
+    setGuardian1Id("");
+    setGuardian1Rel("Mother");
+    setGuardian2Id("");
+    setGuardian2Rel("Father");
+  }
+
   const addChild = useMutation({
     mutationFn: async () => {
-      const guardians = [
-        guardian1Id
-          ? { memberId: guardian1Id, relationship: guardian1Rel }
-          : null,
-        guardian2Id
-          ? { memberId: guardian2Id, relationship: guardian2Rel }
-          : null,
-      ].filter((row): row is { memberId: string; relationship: string } =>
-        Boolean(row),
-      );
+      const guardians = buildFamilyChildGuardians([
+        { memberId: guardian1Id, relationship: guardian1Rel },
+        { memberId: guardian2Id, relationship: guardian2Rel },
+      ]);
       const response = await fetch("/api/v1/children", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -191,15 +200,19 @@ export default function FamilyDetailPage() {
     },
     onSuccess: () => {
       toast("success", "Child registered on this family.");
-      setChildFirst("");
-      setChildLast("");
-      setGuardian1Id("");
-      setGuardian2Id("");
+      setAddChildOpen(false);
+      resetAddChildForm();
       void queryClient.invalidateQueries({ queryKey: ["families", params.id] });
       void queryClient.invalidateQueries({ queryKey: ["children"] });
     },
     onError: (err) => toast("error", err.message),
   });
+
+  function closeAddChildDialog() {
+    if (addChild.isPending) return;
+    setAddChildOpen(false);
+    resetAddChildForm();
+  }
 
   const columns = useMemo<ColumnDef<FamilyMember>[]>(
     () => [
@@ -313,11 +326,20 @@ export default function FamilyDetailPage() {
                 </>
               }
               actions={
-                !editing ? (
-                  <Button type="button" onClick={() => setEditing(true)}>
-                    Edit family
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setAddChildOpen(true)}
+                  >
+                    + Add child
                   </Button>
-                ) : undefined
+                  {!editing ? (
+                    <Button type="button" onClick={() => setEditing(true)}>
+                      Edit family
+                    </Button>
+                  ) : null}
+                </div>
               }
             />
 
@@ -431,86 +453,86 @@ export default function FamilyDetailPage() {
               title="Children"
               description="Children registered on this family. Add more from Children for full profiles."
             >
-              <form
-                className="mb-4 space-y-3 border-b border-border pb-5"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  addChild.mutate();
-                }}
-              >
-                <div className="flex flex-wrap items-end gap-2">
-                  <div className="min-w-36 flex-1">
-                    <Label htmlFor="childFirst">First name</Label>
-                    <Input
-                      id="childFirst"
-                      value={childFirst}
-                      onChange={(event) => setChildFirst(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="min-w-36 flex-1">
-                    <Label htmlFor="childLast">Last name</Label>
-                    <Input
-                      id="childLast"
-                      value={childLast}
-                      onChange={(event) => setChildLast(event.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-end gap-2">
-                  <div className="min-w-48 flex-1">
-                    <Label htmlFor="guardian1">Guardian</Label>
-                    <MemberPicker
-                      id="guardian1"
-                      value={guardian1Id}
-                      onChange={setGuardian1Id}
-                      emptyLabel="Optional — member of this church"
-                      placeholder="Search members"
-                    />
-                  </div>
-                  <div className="min-w-32">
-                    <Label htmlFor="guardian1Rel">Relationship</Label>
-                    <Input
-                      id="guardian1Rel"
-                      value={guardian1Rel}
-                      onChange={(event) => setGuardian1Rel(event.target.value)}
-                    />
-                  </div>
-                  <div className="min-w-48 flex-1">
-                    <Label htmlFor="guardian2">Second guardian</Label>
-                    <MemberPicker
-                      id="guardian2"
-                      value={guardian2Id}
-                      onChange={setGuardian2Id}
-                      emptyLabel="Optional — another member"
-                      placeholder="Search members"
-                    />
-                  </div>
-                  <div className="min-w-32">
-                    <Label htmlFor="guardian2Rel">Relationship</Label>
-                    <Input
-                      id="guardian2Rel"
-                      value={guardian2Rel}
-                      onChange={(event) => setGuardian2Rel(event.target.value)}
-                    />
-                  </div>
-                  <Button type="submit" loading={addChild.isPending} disabled={addChild.isPending}>
-                      Add child
-                    </Button>
-                </div>
-              </form>
               <DataTable
                 columns={childColumns}
                 data={family.data.children}
                 emptyTitle="No children on this family"
-                emptyDescription="Register a child here. More than one guardian can be set, from this church only."
+                emptyDescription="Use + Add child to register a child on this family. More than one guardian can be set, from this church only."
                 getRowHref={(row) => `/children/${row.id}`}
               />
             </SectionCard>
           </div>
         ) : null}
       </QueryState>
+      <FormDialog
+        title="Add child"
+        description="Register a child on this family. Guardians are optional and must be members of this church."
+        open={addChildOpen}
+        pending={addChild.isPending}
+        submitLabel="Add child"
+        onCancel={closeAddChildDialog}
+        onSubmit={() => {
+          if (!familyAddChildFormReady(childFirst, childLast)) return;
+          addChild.mutate();
+        }}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="childFirst">First name</Label>
+            <Input
+              id="childFirst"
+              value={childFirst}
+              onChange={(event) => setChildFirst(event.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="childLast">Last name</Label>
+            <Input
+              id="childLast"
+              value={childLast}
+              onChange={(event) => setChildLast(event.target.value)}
+              required
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="guardian1">Guardian</Label>
+            <MemberPicker
+              id="guardian1"
+              value={guardian1Id}
+              onChange={setGuardian1Id}
+              emptyLabel="Optional — member of this church"
+              placeholder="Search members"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="guardian1Rel">Guardian relationship</Label>
+            <Input
+              id="guardian1Rel"
+              value={guardian1Rel}
+              onChange={(event) => setGuardian1Rel(event.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="guardian2">Second guardian</Label>
+            <MemberPicker
+              id="guardian2"
+              value={guardian2Id}
+              onChange={setGuardian2Id}
+              emptyLabel="Optional — another member"
+              placeholder="Search members"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="guardian2Rel">Second guardian relationship</Label>
+            <Input
+              id="guardian2Rel"
+              value={guardian2Rel}
+              onChange={(event) => setGuardian2Rel(event.target.value)}
+            />
+          </div>
+        </div>
+      </FormDialog>
       <ConfirmDialog
         open={removeTarget !== null}
         title="Remove this member from the family?"
