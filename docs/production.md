@@ -26,8 +26,9 @@ Optional:
 | `MAILTRAP_INBOX_ID` | Optional; when set, uses Mailtrap Email Testing sandbox |
 | `EMAIL_FROM` | From address, e.g. `CHMS <noreply@yourdomain.com>` |
 | `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` | Required on **first** production deploy (creates Super Administrator). After that, redeploys sync permissions without resetting the password; you may remove `SEED_SUPER_ADMIN_PASSWORD` once you have signed in and changed it. |
+| `SEED_DEMO_ADMIN_PASSWORD` | Required on **first** production deploy when the DB has no churches yet (creates the demo church + church admin). Same seed as local (demo church, dashboard sample data). Opt out with `SEED_DEMO_CHURCH=false` / `SEED_DASHBOARD_DEMO=false`. |
 
-Confirm `.env` / `.env.local` stay gitignored. `npm run build` (Vercel deploy) runs `prisma migrate deploy` and `prisma db seed` before `next build`.
+Confirm `.env` / `.env.local` stay gitignored. `npm run build` (Vercel deploy) runs `prisma migrate deploy` and `prisma db seed` before `next build`. Demo church and dashboard sample data seed in production by default (empty DB only).
 
 ## Database backups
 

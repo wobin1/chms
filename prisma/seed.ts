@@ -2,14 +2,22 @@ import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/password";
 import {
   ACCOUNTANT_PERMISSIONS,
+  CHURCH_ADMIN_PERMISSIONS,
   CHURCH_PERMISSIONS,
   ZONE_LEADER_PERMISSIONS,
   DEFAULT_ATTENDANCE_CATEGORIES,
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_GIVING_TYPES,
+  DEFAULT_MEMBERSHIP_STATUSES,
   DEFAULT_SERVICE_TYPES,
   PLATFORM_PERMISSIONS,
 } from "../src/lib/permission-catalog";
+import {
+  assertCanSeedDemoAdminInProduction,
+  resolveDemoAdminPassword,
+  shouldSeedDashboardDemo,
+  shouldSeedDemoChurch,
+} from "../src/lib/demo-seed";
 import {
   assertCanSeedSuperAdminInProduction,
   resolveSuperAdminCredentials,
@@ -78,12 +86,153 @@ function weeksAgoSunday(weeksAgo: number, from = new Date()): Date {
   return d;
 }
 
-function shouldSeedDashboardDemo() {
-  if (process.env.SEED_DASHBOARD_DEMO === "false") return false;
-  if (process.env.NODE_ENV === "production") {
-    return process.env.SEED_DASHBOARD_DEMO === "true";
+async function seedDemoChurchIfEmpty() {
+  const isProduction = process.env.NODE_ENV === "production";
+  if (
+    !shouldSeedDemoChurch({
+      isProduction,
+      flagFromEnv: process.env.SEED_DEMO_CHURCH,
+    })
+  ) {
+    return;
   }
-  return true;
+
+  const churchCount = await prisma.church.count();
+  if (churchCount > 0) return;
+
+  const adminEmail = (
+    process.env.SEED_DEMO_ADMIN_EMAIL ?? "admin@demo.local"
+  ).toLowerCase();
+  const adminPassword = resolveDemoAdminPassword({
+    isProduction,
+    passwordFromEnv: process.env.SEED_DEMO_ADMIN_PASSWORD,
+    defaultPassword: "ChangeMe!church1",
+  });
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail },
+    select: { id: true },
+  });
+  if (existingAdmin) return;
+
+  assertCanSeedDemoAdminInProduction({
+    isProduction,
+    password: adminPassword,
+    willCreateDemoChurch: true,
+  });
+  if (!adminPassword) return;
+
+  const permissions = await prisma.permission.findMany({
+    where: {
+      name: {
+        in: [
+          ...CHURCH_ADMIN_PERMISSIONS,
+          ...ZONE_LEADER_PERMISSIONS,
+          ...ACCOUNTANT_PERMISSIONS,
+        ],
+      },
+    },
+  });
+  const permissionByName = new Map(
+    permissions.map((row) => [row.name, row.id]),
+  );
+
+  await prisma.$transaction(async (tx) => {
+    const church = await tx.church.create({
+      data: {
+        name: process.env.SEED_DEMO_CHURCH_NAME ?? "ECWA Demo",
+        slug: process.env.SEED_DEMO_CHURCH_SLUG ?? "ecwa-demo",
+        shortName: "Demo",
+        denomination: "ECWA",
+        city: "Kaduna",
+        state: "Kaduna",
+        notes: "Seeded demo church for local development",
+      },
+    });
+
+    const adminRole = await tx.role.create({
+      data: {
+        churchId: church.id,
+        name: "Church Administrator",
+        description: "Full administration of this church",
+      },
+    });
+    const zoneLeaderRole = await tx.role.create({
+      data: {
+        churchId: church.id,
+        name: "Zone Leader",
+        description: "Members in assigned zones",
+      },
+    });
+    const accountantRole = await tx.role.create({
+      data: {
+        churchId: church.id,
+        name: "Accountant",
+        description: "Giving, expenses, and financial records for this church",
+      },
+    });
+
+    await tx.rolePermission.createMany({
+      data: [
+        ...CHURCH_ADMIN_PERMISSIONS.map((name) => ({
+          roleId: adminRole.id,
+          permissionId: permissionByName.get(name) ?? "",
+        })),
+        ...ZONE_LEADER_PERMISSIONS.map((name) => ({
+          roleId: zoneLeaderRole.id,
+          permissionId: permissionByName.get(name) ?? "",
+        })),
+        ...ACCOUNTANT_PERMISSIONS.map((name) => ({
+          roleId: accountantRole.id,
+          permissionId: permissionByName.get(name) ?? "",
+        })),
+      ].filter((row) => row.permissionId),
+    });
+
+    await tx.membershipStatus.createMany({
+      data: DEFAULT_MEMBERSHIP_STATUSES.map((name, index) => ({
+        churchId: church.id,
+        name,
+        sortOrder: index,
+      })),
+    });
+    await tx.serviceType.createMany({
+      data: DEFAULT_SERVICE_TYPES.map((name) => ({
+        churchId: church.id,
+        name,
+      })),
+    });
+    await tx.attendanceCategory.createMany({
+      data: DEFAULT_ATTENDANCE_CATEGORIES.map((name, index) => ({
+        churchId: church.id,
+        name,
+        sortOrder: index,
+      })),
+    });
+    await tx.givingType.createMany({
+      data: DEFAULT_GIVING_TYPES.map((name) => ({
+        churchId: church.id,
+        name,
+      })),
+    });
+    await tx.expenseCategory.createMany({
+      data: DEFAULT_EXPENSE_CATEGORIES.map((name) => ({
+        churchId: church.id,
+        name,
+      })),
+    });
+
+    const admin = await tx.user.create({
+      data: {
+        churchId: church.id,
+        name: process.env.SEED_DEMO_ADMIN_NAME ?? "Demo Church Admin",
+        email: adminEmail,
+        passwordHash: await hashPassword(adminPassword),
+      },
+    });
+    await tx.userRole.create({
+      data: { userId: admin.id, roleId: adminRole.id },
+    });
+  });
 }
 
 async function seedChurchDashboardDemo(churchId: string) {
@@ -238,34 +387,41 @@ async function seedChurchDashboardDemo(churchId: string) {
       });
     }
 
-    const givingType =
-      (await prisma.givingType.findFirst({
-        where: { churchId, name: "Offering" },
-      })) ??
-      (await prisma.givingType.findFirst({ where: { churchId } }));
-    const expenseCategory =
-      (await prisma.expenseCategory.findFirst({
-        where: { churchId, name: "Utilities" },
-      })) ??
-      (await prisma.expenseCategory.findFirst({ where: { churchId } }));
+    const givingTypes = await prisma.givingType.findMany({
+      where: { churchId },
+      orderBy: { name: "asc" },
+    });
+    const expenseCategories = await prisma.expenseCategory.findMany({
+      where: { churchId },
+      orderBy: { name: "asc" },
+    });
 
     const existingGiving = await prisma.giving.count({
       where: {
         churchId,
-        transactionReference: { startsWith: "DASH-GIV-" },
+        transactionReference: { startsWith: "DASH-FIN-GIV-" },
       },
     });
-    if (givingType && existingGiving === 0) {
-      for (let weeksAgo = 7; weeksAgo >= 0; weeksAgo -= 1) {
+    if (givingTypes.length > 0 && existingGiving === 0) {
+      for (let weeksAgo = 11; weeksAgo >= 0; weeksAgo -= 1) {
         const createdAt = weeksAgoSunday(weeksAgo);
         createdAt.setUTCHours(12, 0, 0, 0);
+        const type = givingTypes[weeksAgo % givingTypes.length]!;
+        const base =
+          type.name === "Tithe"
+            ? 120000
+            : type.name === "Offering"
+              ? 85000
+              : type.name === "Building Fund"
+                ? 45000
+                : 25000;
         await prisma.giving.create({
           data: {
             churchId,
-            givingTypeId: givingType.id,
-            amount: 85000 + weeksAgo * 4500 + (weeksAgo % 3) * 12000,
-            paymentMethod: "Cash",
-            transactionReference: `DASH-GIV-${weeksAgo}`,
+            givingTypeId: type.id,
+            amount: base + weeksAgo * 3500 + (weeksAgo % 4) * 8000,
+            paymentMethod: weeksAgo % 2 === 0 ? "Cash" : "Transfer",
+            transactionReference: `DASH-FIN-GIV-${type.name.replace(/\s+/g, "").slice(0, 8)}-${weeksAgo}`,
             recordedById: author.id,
             createdAt,
           },
@@ -276,22 +432,24 @@ async function seedChurchDashboardDemo(churchId: string) {
     const existingExpenses = await prisma.expense.count({
       where: {
         churchId,
-        reference: { startsWith: "DASH-EXP-" },
+        reference: { startsWith: "DASH-FIN-EXP-" },
       },
     });
-    if (expenseCategory && existingExpenses === 0) {
-      for (let weeksAgo = 7; weeksAgo >= 0; weeksAgo -= 1) {
+    if (expenseCategories.length > 0 && existingExpenses === 0) {
+      for (let weeksAgo = 11; weeksAgo >= 0; weeksAgo -= 1) {
         if (weeksAgo % 2 === 1) continue;
         const expenseDate = weeksAgoSunday(weeksAgo);
+        const category =
+          expenseCategories[weeksAgo % expenseCategories.length]!;
         await prisma.expense.create({
           data: {
             churchId,
-            categoryId: expenseCategory.id,
-            amount: 22000 + weeksAgo * 3500,
-            description: "Dashboard demo expense",
+            categoryId: category.id,
+            amount: 18000 + weeksAgo * 2800 + (weeksAgo % 3) * 5000,
+            description: `Demo ${category.name.toLowerCase()} expense`,
             expenseDate,
             paymentMethod: "Transfer",
-            reference: `DASH-EXP-${weeksAgo}`,
+            reference: `DASH-FIN-EXP-${category.name.replace(/\s+/g, "").slice(0, 8)}-${weeksAgo}`,
             recordedById: author.id,
           },
         });
@@ -395,6 +553,8 @@ async function main() {
       roleId: role.id,
     },
   });
+
+  await seedDemoChurchIfEmpty();
 
   const churchPermissions = await prisma.permission.findMany({
     where: { name: { in: [...CHURCH_PERMISSIONS] } },
@@ -527,7 +687,12 @@ async function main() {
       });
     }
 
-    if (shouldSeedDashboardDemo()) {
+    if (
+      shouldSeedDashboardDemo({
+        isProduction,
+        flagFromEnv: process.env.SEED_DASHBOARD_DEMO,
+      })
+    ) {
       await seedChurchDashboardDemo(church.id);
     }
   }

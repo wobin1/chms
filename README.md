@@ -25,4 +25,4 @@ npm test
 
 See [docs/production.md](docs/production.md) for Vercel env vars, database backups, optional Sentry, and optional Mailtrap email.
 
-Deploy runs migrations and seed via `npm run build`. Set `SEED_SUPER_ADMIN_EMAIL` and `SEED_SUPER_ADMIN_PASSWORD` on Vercel for the first deploy.
+Deploy runs migrations and seed via `npm run build`. Set `SEED_SUPER_ADMIN_EMAIL`, `SEED_SUPER_ADMIN_PASSWORD`, and `SEED_DEMO_ADMIN_PASSWORD` on Vercel for the first deploy (demo church + sample data seed by default).
