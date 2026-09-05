@@ -1,5 +1,5 @@
 ---
-description: Match docs/ui-references screenshots. Blue palette. Light and dark mode. Church copy, not the other app.
+description: Match docs/ui-references screenshots. Navy + teal palette. Light and dark mode. Church copy, not the other app.
 alwaysApply: true
 ---
 
@@ -19,7 +19,7 @@ Before any UI work, **Read** `docs/ui-references/01-list-table.png`, `docs/ui-re
 
 ## Ours, not theirs
 
-- Accent is **blue** from `palette.md` (replace every green).
+- Accent is **teal** on **navy** from `palette.md` (replace every green).
 - **Light and dark** both required. Toggle in the header; persist preference.
 - Copy: church, member, zone, service — not Employee/Award/Leave from the shots.
 - Nav items follow the PRD, not the HR menu.

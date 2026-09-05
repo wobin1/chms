@@ -1,6 +1,6 @@
 # UI reference screenshots
 
-Layout source (another product). **Colors:** blue shades in `palette.md`. **Theme:** light and dark.
+Layout source (another product). **Colors:** navy + teal in `palette.md`. **Theme:** light and dark.
 
 | File | Use as |
 |---|---|

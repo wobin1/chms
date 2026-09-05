@@ -25,13 +25,13 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           data-testid="auth-brand-panel"
           className="relative hidden min-h-[28rem] md:block"
         >
-          <div className="absolute inset-3 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-accent via-[#1e40af] to-[#0f172a]">
+          <div className="absolute inset-3 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-accent via-[#0f766e] to-[#0a1628]">
             <div
               aria-hidden
               className="absolute inset-0 opacity-30"
               style={{
                 backgroundImage:
-                  "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.35), transparent 45%), radial-gradient(circle at 80% 70%, rgba(147,197,253,0.4), transparent 40%)",
+                  "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.35), transparent 45%), radial-gradient(circle at 80% 70%, rgba(94,234,212,0.35), transparent 40%)",
               }}
             />
             <div className="relative flex h-full flex-col justify-between p-8 text-white">
