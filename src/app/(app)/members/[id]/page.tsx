@@ -7,6 +7,7 @@ import { Mail, MapPin, Phone } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { QueryState } from "@/components/query-state";
 import { Button } from "@/components/ui/button";
+import { FamilyOfTheWeekBadge } from "@/features/families/components/family-of-the-week-badge";
 import { GENDER_LABELS } from "@/features/services/labels";
 import { displayValue, formatDisplayDate } from "@/lib/ui";
 import type { PublicUser } from "@/lib/auth-types";
@@ -32,6 +33,7 @@ type Member = {
   deletedAt: string | null;
   zone: { name: string } | null;
   membershipStatus: { name: string };
+  isFamilyOfTheWeek?: boolean;
   familyMembers: {
     relationship: string;
     family: { id: string; name: string };
@@ -125,6 +127,7 @@ export default function MemberProfilePage() {
                       <span className="rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
                         {data.membershipStatus.name}
                       </span>
+                      {data.isFamilyOfTheWeek ? <FamilyOfTheWeekBadge /> : null}
                       {data.departments?.map((row) => (
                         <span
                           key={row.department.id}
@@ -225,6 +228,7 @@ export default function MemberProfilePage() {
                           {data.familyMembers[0].relationship
                             ? ` · ${data.familyMembers[0].relationship}`
                             : ""}
+                          {data.isFamilyOfTheWeek ? " · Family of the week" : ""}
                         </Link>
                       ) : (
                         "—"

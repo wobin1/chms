@@ -22,15 +22,19 @@ import { useToast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { IconButton, rowIcons } from "@/components/ui/icon-button";
 import {
   buildFamilyChildGuardians,
   familyAddChildFormReady,
 } from "@/features/families/add-child-form";
+import { FamilyOfTheWeekBadge } from "@/features/families/components/family-of-the-week-badge";
 import {
   type FamilyRelationshipSelection,
   relationshipValueFromPreset,
 } from "@/features/families/relationship";
+import { LOOKUP_PAGE_SIZE } from "@/lib/pagination";
+import type { PublicUser } from "@/lib/auth-types";
 import { displayValue, readApiError } from "@/lib/ui";
 
 type FamilyMember = {
@@ -49,6 +53,9 @@ type Family = {
   id: string;
   name: string;
   address: string | null;
+  zoneId: string;
+  isFamilyOfTheWeek?: boolean;
+  zone: { id: string; name: string };
   members: FamilyMember[];
   children: FamilyChild[];
 };
@@ -83,6 +90,38 @@ export default function FamilyDetailPage() {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
+  const [zoneId, setZoneId] = useState("");
+  const [weekConfirm, setWeekConfirm] = useState<"set" | "clear" | null>(null);
+
+  const me = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: async () => {
+      const response = await fetch("/api/v1/auth/me");
+      if (!response.ok) throw new Error("unauthenticated");
+      const body = (await response.json()) as { user: PublicUser };
+      return body.user;
+    },
+  });
+  const canManageFamilies =
+    me.data?.permissions.includes("families:manage") ?? false;
+  const canSetFamilyOfTheWeek =
+    me.data?.permissions.includes("families:read") ?? false;
+  const canManageChildren =
+    me.data?.permissions.includes("children:manage") ?? false;
+  const canReadChildren =
+    me.data?.permissions.includes("children:read") ?? false;
+
+  const zones = useQuery({
+    queryKey: ["zones"],
+    enabled: canManageFamilies,
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/v1/zones?page=1&pageSize=${LOOKUP_PAGE_SIZE}`,
+      );
+      if (!response.ok) return { items: [] as { id: string; name: string }[] };
+      return (await response.json()) as { items: { id: string; name: string }[] };
+    },
+  });
 
   const family = useQuery({
     queryKey: ["families", params.id],
@@ -101,11 +140,17 @@ export default function FamilyDetailPage() {
     if (family.data && !editing) {
       setName(family.data.name);
       setAddress(family.data.address ?? "");
+      setZoneId(family.data.zoneId ?? family.data.zone?.id ?? "");
     }
   }, [family.data, editing]);
 
   const save = useMutation({
-    mutationFn: async (payload: { name?: string; address?: string | null }) => {
+    mutationFn: async (payload: {
+      name?: string;
+      address?: string | null;
+      zoneId?: string;
+      familyOfTheWeek?: boolean;
+    }) => {
       const response = await fetch(`/api/v1/families/${params.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -115,10 +160,21 @@ export default function FamilyDetailPage() {
         throw new Error(await readApiError(response, "Unable to update family"));
       }
     },
-    onSuccess: () => {
-      toast("success", "Family updated.");
-      setEditing(false);
+    onSuccess: (_data, payload) => {
+      if (payload.familyOfTheWeek === true) {
+        toast("success", "Set as family of the week.");
+        setWeekConfirm(null);
+      } else if (payload.familyOfTheWeek === false) {
+        toast("success", "Family of the week cleared.");
+        setWeekConfirm(null);
+      } else {
+        toast("success", "Family updated.");
+        setEditing(false);
+      }
       void queryClient.invalidateQueries({ queryKey: ["families"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["members"] });
+      void queryClient.invalidateQueries({ queryKey: ["zones"] });
     },
     onError: (err) => toast("error", err.message),
   });
@@ -219,8 +275,14 @@ export default function FamilyDetailPage() {
       {
         id: "name",
         header: "Name",
-        cell: ({ row }) =>
-          `${row.original.member.lastName}, ${row.original.member.firstName}`,
+        cell: ({ row }) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <span>
+              {`${row.original.member.lastName}, ${row.original.member.firstName}`}
+            </span>
+            {family.data?.isFamilyOfTheWeek ? <FamilyOfTheWeekBadge /> : null}
+          </div>
+        ),
       },
       {
         id: "number",
@@ -236,7 +298,8 @@ export default function FamilyDetailPage() {
       {
         id: "actions",
         header: "Activity",
-        cell: ({ row }) => (
+        cell: ({ row }) =>
+          canManageFamilies ? (
           <Button
             variant="ghost"
             disabled={removeMember.isPending}
@@ -244,10 +307,10 @@ export default function FamilyDetailPage() {
           >
             Remove
           </Button>
-        ),
+          ) : null,
       },
     ],
-    [removeMember.isPending],
+    [canManageFamilies, family.data?.isFamilyOfTheWeek, removeMember.isPending],
   );
 
   const childColumns = useMemo<ColumnDef<FamilyChild>[]>(
@@ -271,28 +334,34 @@ export default function FamilyDetailPage() {
                 .join("; ")
             : "—",
       },
-      {
-        id: "actions",
-        header: "Activity",
-        cell: ({ row }) => (
-          <div className="flex gap-2">
-            <IconButton
-              label="View child"
-              icon={rowIcons.Eye}
-              tone="view"
-              onClick={() => router.push(`/children/${row.original.id}`)}
-            />
-            <IconButton
-              label="Edit child"
-              icon={rowIcons.Pencil}
-              tone="edit"
-              onClick={() => router.push(`/children/${row.original.id}`)}
-            />
-          </div>
-        ),
-      },
+      ...(canReadChildren
+        ? [
+            {
+              id: "actions",
+              header: "Activity",
+              cell: ({ row }: { row: { original: FamilyChild } }) => (
+                <div className="flex gap-2">
+                  <IconButton
+                    label="View child"
+                    icon={rowIcons.Eye}
+                    tone="view"
+                    onClick={() => router.push(`/children/${row.original.id}`)}
+                  />
+                  {canManageChildren ? (
+                    <IconButton
+                      label="Edit child"
+                      icon={rowIcons.Pencil}
+                      tone="edit"
+                      onClick={() => router.push(`/children/${row.original.id}`)}
+                    />
+                  ) : null}
+                </div>
+              ),
+            } satisfies ColumnDef<FamilyChild>,
+          ]
+        : []),
     ],
-    [router],
+    [canManageChildren, canReadChildren, router],
   );
 
   return (
@@ -315,6 +384,9 @@ export default function FamilyDetailPage() {
               }
               badges={
                 <>
+                  {family.data.isFamilyOfTheWeek ? (
+                    <FamilyOfTheWeekBadge />
+                  ) : null}
                   <Chip>
                     {family.data.members.length}{" "}
                     {family.data.members.length === 1 ? "member" : "members"}
@@ -326,37 +398,59 @@ export default function FamilyDetailPage() {
                 </>
               }
               actions={
+                canSetFamilyOfTheWeek || canManageFamilies || canManageChildren ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setAddChildOpen(true)}
-                  >
-                    + Add child
-                  </Button>
-                  {!editing ? (
+                  {canSetFamilyOfTheWeek ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={save.isPending}
+                      onClick={() =>
+                        setWeekConfirm(
+                          family.data.isFamilyOfTheWeek ? "clear" : "set",
+                        )
+                      }
+                    >
+                      {family.data.isFamilyOfTheWeek
+                        ? "Remove family of the week"
+                        : "Set as family of the week"}
+                    </Button>
+                  ) : null}
+                  {canManageChildren ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setAddChildOpen(true)}
+                    >
+                      + Add child
+                    </Button>
+                  ) : null}
+                  {canManageFamilies && !editing ? (
                     <Button type="button" onClick={() => setEditing(true)}>
                       Edit family
                     </Button>
                   ) : null}
                 </div>
+                ) : null
               }
             />
 
             {editing ? (
               <EditPanel
                 title="Edit family"
-                description="Update the family name and address."
+                description="Update the family name, zone, and address."
                 pending={save.isPending}
                 onCancel={() => {
                   setName(family.data.name);
                   setAddress(family.data.address ?? "");
+                  setZoneId(family.data.zoneId ?? family.data.zone?.id ?? "");
                   setEditing(false);
                 }}
                 onSave={() =>
                   save.mutate({
                     name: name.trim(),
                     address: address.trim() || null,
+                    zoneId,
                   })
                 }
               >
@@ -371,6 +465,22 @@ export default function FamilyDetailPage() {
                     />
                   </div>
                   <div>
+                    <Label htmlFor="zoneId">Zone</Label>
+                    <Select
+                      id="zoneId"
+                      value={zoneId}
+                      onChange={(e) => setZoneId(e.target.value)}
+                      required
+                    >
+                      <option value="">Select a zone</option>
+                      {(zones.data?.items ?? []).map((zone) => (
+                        <option key={zone.id} value={zone.id}>
+                          {zone.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="sm:col-span-2">
                     <Label htmlFor="address">Address</Label>
                     <Input
                       id="address"
@@ -385,6 +495,10 @@ export default function FamilyDetailPage() {
                 <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <DetailField label="Family name" value={family.data.name} />
                   <DetailField
+                    label="Zone"
+                    value={family.data.zone?.name ?? "—"}
+                  />
+                  <DetailField
                     label="Address"
                     value={displayValue(family.data.address)}
                   />
@@ -396,13 +510,14 @@ export default function FamilyDetailPage() {
               title="Family members"
               description="Members linked to this family in this church."
             >
-              <form
-                className="mb-4 space-y-3 border-b border-border pb-5"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  addMember.mutate();
-                }}
-              >
+              {canManageFamilies ? (
+                <form
+                  className="mb-4 space-y-3 border-b border-border pb-5"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    addMember.mutate();
+                  }}
+                >
                 <div>
                   <Label htmlFor="member">Members</Label>
                   <MemberPicker
@@ -440,6 +555,7 @@ export default function FamilyDetailPage() {
                   </Button>
                 </div>
               </form>
+              ) : null}
               <DataTable
                 columns={columns}
                 data={family.data.members}
@@ -457,8 +573,14 @@ export default function FamilyDetailPage() {
                 columns={childColumns}
                 data={family.data.children}
                 emptyTitle="No children on this family"
-                emptyDescription="Use + Add child to register a child on this family. More than one guardian can be set, from this church only."
-                getRowHref={(row) => `/children/${row.id}`}
+                emptyDescription={
+                  canManageChildren
+                    ? "Use + Add child to register a child on this family. More than one guardian can be set, from this church only."
+                    : "No children are registered on this family."
+                }
+                getRowHref={
+                  canReadChildren ? (row) => `/children/${row.id}` : undefined
+                }
               />
             </SectionCard>
           </div>
@@ -533,6 +655,26 @@ export default function FamilyDetailPage() {
           </div>
         </div>
       </FormDialog>
+      <ConfirmDialog
+        open={weekConfirm !== null}
+        title={
+          weekConfirm === "clear"
+            ? "Remove family of the week?"
+            : "Set as family of the week?"
+        }
+        description={
+          weekConfirm === "clear"
+            ? `${family.data?.name ?? "This family"} will no longer be featured as family of the week.`
+            : `This replaces any current family of the week in ${family.data?.zone?.name ?? "this zone"} with ${family.data?.name ?? "this family"}.`
+        }
+        confirmLabel={weekConfirm === "clear" ? "Remove" : "Set as family of the week"}
+        danger={weekConfirm === "clear"}
+        pending={save.isPending}
+        onCancel={() => setWeekConfirm(null)}
+        onConfirm={() => {
+          save.mutate({ familyOfTheWeek: weekConfirm === "set" });
+        }}
+      />
       <ConfirmDialog
         open={removeTarget !== null}
         title="Remove this member from the family?"

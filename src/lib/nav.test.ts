@@ -10,12 +10,12 @@ import {
 } from "./nav";
 
 describe("church sidebar nav", () => {
-  it("shows a zone leader Dashboard, Members, and Pastoral", () => {
+  it("shows a zone leader Dashboard, Members, Families, and Pastoral", () => {
     expect(
       visibleNavItems(CHURCH_NAV, [...ZONE_LEADER_PERMISSIONS]).map(
         (item) => item.label,
       ),
-    ).toEqual(["Dashboard", "Church", "Members", "Pastoral"]);
+    ).toEqual(["Dashboard", "Church", "Members", "Families", "Pastoral"]);
   });
 
   it("shows a church administrator the full church menu", () => {
@@ -50,7 +50,8 @@ describe("church sidebar nav", () => {
     expect(isNavPathAllowed("/change-password", items)).toBe(true);
     expect(isNavPathAllowed("/church", items)).toBe(true);
     expect(isNavPathAllowed("/zones", items)).toBe(false);
-    expect(isNavPathAllowed("/families", items)).toBe(false);
+    expect(isNavPathAllowed("/families", items)).toBe(true);
+    expect(isNavPathAllowed("/families/abc", items)).toBe(true);
     expect(isNavPathAllowed("/children", items)).toBe(false);
     expect(isNavPathAllowed("/departments", items)).toBe(false);
     expect(isNavPathAllowed("/ministries", items)).toBe(false);

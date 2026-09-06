@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/back-link";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { IconButton, rowIcons } from "@/components/ui/icon-button";
+import { FamilyOfTheWeekBadge } from "@/features/families/components/family-of-the-week-badge";
 import type { PublicUser } from "@/lib/auth-types";
 import { displayValue, readApiError } from "@/lib/ui";
 
@@ -24,6 +26,7 @@ type Zone = {
   description: string | null;
   status: "ACTIVE" | "INACTIVE";
   leaders: Leader[];
+  familyOfTheWeek: { id: string; name: string } | null;
 };
 type User = {
   id: string;
@@ -36,11 +39,24 @@ type Member = {
   lastName: string;
   membershipNumber: string;
 };
+type ZoneFamily = {
+  id: string;
+  name: string;
+  address: string | null;
+  isFamilyOfTheWeek?: boolean;
+  _count: { members: number; children: number };
+};
 
 type ConfirmAction =
   | { type: "deactivate" }
   | { type: "removeLeader"; userId: string; name: string }
   | null;
+
+type WeekConfirm = {
+  familyId: string;
+  name: string;
+  action: "set" | "clear";
+};
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
@@ -53,6 +69,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 export default function ZoneDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -60,6 +77,7 @@ export default function ZoneDetailPage() {
   const [description, setDescription] = useState("");
   const [leaderId, setLeaderId] = useState("");
   const [confirm, setConfirm] = useState<ConfirmAction>(null);
+  const [weekConfirm, setWeekConfirm] = useState<WeekConfirm | null>(null);
 
   const me = useQuery({
     queryKey: ["auth", "me"],
@@ -71,6 +89,11 @@ export default function ZoneDetailPage() {
     },
   });
   const canManage = me.data?.permissions.includes("zones:manage") ?? false;
+  const canReadFamilies =
+    me.data?.permissions.includes("families:read") ?? false;
+  const canManageFamilies =
+    me.data?.permissions.includes("families:manage") ?? false;
+  const canSetFamilyOfTheWeek = canReadFamilies;
 
   const zone = useQuery({
     queryKey: ["zones", params.id],
@@ -95,6 +118,15 @@ export default function ZoneDetailPage() {
       const response = await fetch(`/api/v1/zones/${params.id}/members`);
       if (!response.ok) throw new Error("failed");
       return (await response.json()) as { items: Member[] };
+    },
+  });
+  const families = useQuery({
+    queryKey: ["zones", params.id, "families"],
+    enabled: canReadFamilies,
+    queryFn: async () => {
+      const response = await fetch(`/api/v1/zones/${params.id}/families`);
+      if (!response.ok) throw new Error("failed");
+      return (await response.json()) as { items: ZoneFamily[]; total: number };
     },
   });
 
@@ -173,6 +205,37 @@ export default function ZoneDetailPage() {
     onError: (err) => toast("error", err.message),
   });
 
+  const setWeek = useMutation({
+    mutationFn: async (payload: {
+      familyId: string;
+      familyOfTheWeek: boolean;
+    }) => {
+      const response = await fetch(`/api/v1/families/${payload.familyId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ familyOfTheWeek: payload.familyOfTheWeek }),
+      });
+      if (!response.ok) {
+        throw new Error(
+          await readApiError(response, "Unable to update family of the week"),
+        );
+      }
+    },
+    onSuccess: (_data, payload) => {
+      toast(
+        "success",
+        payload.familyOfTheWeek
+          ? "Set as family of the week."
+          : "Family of the week cleared.",
+      );
+      setWeekConfirm(null);
+      void queryClient.invalidateQueries({ queryKey: ["zones"] });
+      void queryClient.invalidateQueries({ queryKey: ["families"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (err) => toast("error", err.message),
+  });
+
   const memberColumns = useMemo<ColumnDef<Member>[]>(
     () => [
       {
@@ -193,8 +256,72 @@ export default function ZoneDetailPage() {
     [],
   );
 
+  const familyColumns = useMemo<ColumnDef<ZoneFamily>[]>(
+    () => [
+      {
+        id: "name",
+        header: "Name",
+        cell: ({ row }) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{row.original.name}</span>
+            {row.original.isFamilyOfTheWeek ? <FamilyOfTheWeekBadge /> : null}
+          </div>
+        ),
+      },
+      {
+        id: "address",
+        header: "Address",
+        cell: ({ row }) => row.original.address ?? "—",
+      },
+      {
+        id: "members",
+        header: "Members",
+        cell: ({ row }) => row.original._count.members,
+      },
+      {
+        id: "children",
+        header: "Children",
+        cell: ({ row }) => row.original._count.children,
+      },
+      {
+        id: "actions",
+        header: "Activity",
+        cell: ({ row }) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <IconButton
+              label="View family"
+              icon={rowIcons.Eye}
+              tone="view"
+              onClick={() => router.push(`/families/${row.original.id}`)}
+            />
+            {canSetFamilyOfTheWeek ? (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={setWeek.isPending}
+                onClick={() =>
+                  setWeekConfirm({
+                    familyId: row.original.id,
+                    name: row.original.name,
+                    action: row.original.isFamilyOfTheWeek ? "clear" : "set",
+                  })
+                }
+              >
+                {row.original.isFamilyOfTheWeek
+                  ? "Remove family of the week"
+                  : "Set as family of the week"}
+              </Button>
+            ) : null}
+          </div>
+        ),
+      },
+    ],
+    [canSetFamilyOfTheWeek, router, setWeek.isPending],
+  );
+
   const data = zone.data;
   const memberCount = members.data?.items.length ?? 0;
+  const familyCount = families.data?.total ?? 0;
   const leaderCount = data?.leaders.length ?? 0;
 
   function startEditing() {
@@ -253,6 +380,13 @@ export default function ZoneDetailPage() {
                         ? "…"
                         : `${memberCount} ${memberCount === 1 ? "member" : "members"}`}
                     </span>
+                    {canReadFamilies ? (
+                      <span className="rounded-full bg-canvas px-3 py-1 text-xs font-medium text-text ring-1 ring-border">
+                        {families.data == null
+                          ? "…"
+                          : `${familyCount} ${familyCount === 1 ? "family" : "families"}`}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 {canManage && !editing ? (
@@ -433,6 +567,40 @@ export default function ZoneDetailPage() {
               </section>
             </div>
 
+            {canReadFamilies ? (
+              <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-text">
+                      Zone families
+                    </h2>
+                    <p className="mt-1.5 text-sm leading-normal text-text-muted">
+                      {canSetFamilyOfTheWeek
+                        ? "Households in this zone. Set this zone's family of the week from the list."
+                        : "Households in this zone, including family of the week."}
+                    </p>
+                  </div>
+                  <Link
+                    href="/families"
+                    className="text-sm font-medium text-accent hover:underline"
+                  >
+                    Open families
+                  </Link>
+                </div>
+                <DataTable
+                  columns={familyColumns}
+                  data={families.data?.items ?? []}
+                  emptyTitle="No families in this zone"
+                  emptyDescription={
+                    canManageFamilies
+                      ? "Add a family and assign it to this zone, then set family of the week here."
+                      : "No families belong to this zone yet."
+                  }
+                  getRowHref={(row) => `/families/${row.id}`}
+                />
+              </section>
+            ) : null}
+
             <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -481,6 +649,34 @@ export default function ZoneDetailPage() {
           } else if (confirm?.type === "deactivate") {
             save.mutate({ status: "INACTIVE" });
           }
+        }}
+      />
+      <ConfirmDialog
+        open={weekConfirm !== null}
+        title={
+          weekConfirm?.action === "clear"
+            ? "Remove family of the week?"
+            : "Set as family of the week?"
+        }
+        description={
+          weekConfirm?.action === "clear"
+            ? `${weekConfirm.name} will no longer be featured as family of the week.`
+            : `This replaces any current family of the week in this zone with ${weekConfirm?.name ?? "this family"}.`
+        }
+        confirmLabel={
+          weekConfirm?.action === "clear"
+            ? "Remove"
+            : "Set as family of the week"
+        }
+        danger={weekConfirm?.action === "clear"}
+        pending={setWeek.isPending}
+        onCancel={() => setWeekConfirm(null)}
+        onConfirm={() => {
+          if (!weekConfirm) return;
+          setWeek.mutate({
+            familyId: weekConfirm.familyId,
+            familyOfTheWeek: weekConfirm.action === "set",
+          });
         }}
       />
     </div>

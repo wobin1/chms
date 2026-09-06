@@ -109,7 +109,11 @@ export async function getChurchDashboard(session: AuthContext) {
       ? { churchId, status: "ACTIVE", id: { in: assignedZoneIds } }
       : { churchId, status: "ACTIVE" },
     orderBy: { name: "asc" },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      familyOfTheWeek: { select: { id: true, name: true } },
+    },
   });
   const [grouped, newGrouped] = await Promise.all([
     prisma.member.groupBy({
@@ -273,6 +277,19 @@ export async function getChurchDashboard(session: AuthContext) {
     count: baseline + point.count,
   }));
 
+  const familiesOfTheWeek = zones.flatMap((zone) =>
+    zone.familyOfTheWeek
+      ? [
+          {
+            id: zone.familyOfTheWeek.id,
+            name: zone.familyOfTheWeek.name,
+            zoneId: zone.id,
+            zoneName: zone.name,
+          },
+        ]
+      : [],
+  );
+
   return {
     scope: scoped ? ("zone" as const) : ("church" as const),
     members: {
@@ -288,5 +305,6 @@ export async function getChurchDashboard(session: AuthContext) {
     visitors,
     recentAnnouncements,
     financeTrend,
+    familiesOfTheWeek,
   };
 }

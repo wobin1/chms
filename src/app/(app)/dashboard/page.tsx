@@ -8,6 +8,7 @@ import {
   FinanceTrendChart,
   MembersByZoneChart,
 } from "@/components/dashboard/charts";
+import { FamiliesOfTheWeekGrid } from "@/components/dashboard/families-of-the-week";
 import { formatDisplayDate, formatMoney } from "@/lib/ui";
 
 type Dashboard = {
@@ -51,6 +52,12 @@ type Dashboard = {
     giving: number;
     expenses: number;
   }[] | null;
+  familiesOfTheWeek: {
+    id: string;
+    name: string;
+    zoneId: string;
+    zoneName: string;
+  }[];
 };
 
 function KpiCard({
@@ -152,6 +159,8 @@ export default function ChurchDashboardPage() {
                 />
               )}
             </div>
+
+            <FamiliesOfTheWeekGrid families={data.familiesOfTheWeek} />
 
             <div className="grid gap-5 xl:grid-cols-3">
               <section className="rounded-xl border border-border bg-surface p-6 shadow-sm xl:col-span-2">

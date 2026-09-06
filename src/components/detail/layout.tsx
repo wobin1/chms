@@ -115,9 +115,21 @@ export function StatusBadge({
   );
 }
 
-export function Chip({ children }: { children: ReactNode }) {
+export function Chip({
+  children,
+  tone = "default",
+}: {
+  children: ReactNode;
+  tone?: "default" | "accent";
+}) {
   return (
-    <span className="rounded-full bg-canvas px-3 py-1 text-xs font-medium text-text ring-1 ring-border">
+    <span
+      className={
+        tone === "accent"
+          ? "rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent"
+          : "rounded-full bg-canvas px-3 py-1 text-xs font-medium text-text ring-1 ring-border"
+      }
+    >
       {children}
     </span>
   );

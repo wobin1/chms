@@ -227,6 +227,9 @@ model Zone {
   church  Church       @relation(fields: [churchId], references: [id])
   leaders ZoneLeader[]
   members Member[]
+  families Family[]
+  familyOfTheWeekId String? @unique @map("family_of_the_week_id") @db.Uuid
+  familyOfTheWeek   Family? @relation("ZoneFamilyOfTheWeek", fields: [familyOfTheWeekId], references: [id], onDelete: SetNull)
 
   @@unique([churchId, name])
   @@index([churchId])
@@ -314,17 +317,21 @@ model Member {
 model Family {
   id        String   @id @default(uuid()) @db.Uuid
   churchId  String   @map("church_id") @db.Uuid
+  zoneId    String   @map("zone_id") @db.Uuid
   name      String
   address   String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  church   Church         @relation(fields: [churchId], references: [id])
-  members  FamilyMember[]
-  children Child[]
+  church         Church         @relation(fields: [churchId], references: [id])
+  zone           Zone           @relation(fields: [zoneId], references: [id])
+  featuredByZone Zone?          @relation("ZoneFamilyOfTheWeek")
+  members        FamilyMember[]
+  children       Child[]
 
   @@unique([churchId, name])
   @@index([churchId])
+  @@index([zoneId])
   @@map("families")
 }
 

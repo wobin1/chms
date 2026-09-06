@@ -32,8 +32,10 @@ export const CHURCH_NAV: NavItem[] = [
     href: "/families",
     label: "Families",
     icon: "families",
-    permission: "families:manage",
-    children: [{ href: "/children", label: "Children" }],
+    permission: "families:read",
+    children: [
+      { href: "/children", label: "Children", permission: "children:read" },
+    ],
   },
   {
     href: "/departments",

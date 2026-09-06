@@ -38,7 +38,15 @@ const memberInclude = {
   zone: { select: { id: true, name: true, status: true } },
   membershipStatus: { select: { id: true, name: true } },
   familyMembers: {
-    include: { family: { select: { id: true, name: true } } },
+    include: {
+      family: {
+        select: {
+          id: true,
+          name: true,
+          zone: { select: { familyOfTheWeekId: true } },
+        },
+      },
+    },
   },
   departments: {
     include: { department: { select: { id: true, name: true } } },
@@ -201,7 +209,12 @@ export async function getMember(session: AuthContext, memberId: string) {
   if (!member) {
     throw new NotFoundError();
   }
-  return member;
+  return {
+    ...member,
+    isFamilyOfTheWeek: member.familyMembers.some(
+      (row) => row.family.zone.familyOfTheWeekId === row.family.id,
+    ),
+  };
 }
 
 export async function createMember(

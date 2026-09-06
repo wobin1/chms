@@ -229,6 +229,54 @@ describe("church dashboard isolation", () => {
     expect(givingTotal).toBe(2000);
     expect(expenseTotal).toBe(350);
   });
+
+  it("loads family of the week for each zone in the session church", async () => {
+    zoneFindMany.mockResolvedValue([
+      {
+        id: "zone-hope",
+        name: "Hope",
+        familyOfTheWeek: { id: "family-a", name: "Adewale" },
+      },
+    ]);
+    const { getChurchDashboard } = await import("./dashboard-service");
+    const dashboard = await getChurchDashboard(churchAdmin);
+    expect(dashboard.familiesOfTheWeek).toEqual([
+      {
+        id: "family-a",
+        name: "Adewale",
+        zoneId: "zone-hope",
+        zoneName: "Hope",
+      },
+    ]);
+  });
+
+  it("lets a zone leader see family of the week for assigned zones only", async () => {
+    zoneFindMany.mockResolvedValue([
+      {
+        id: "zone-hope",
+        name: "Hope",
+        familyOfTheWeek: { id: "family-a", name: "Adewale" },
+      },
+    ]);
+    const { getChurchDashboard } = await import("./dashboard-service");
+    const dashboard = await getChurchDashboard(zoneLeader);
+    expect(zoneFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          churchId: "church-a",
+          id: { in: ["zone-hope"] },
+        }),
+      }),
+    );
+    expect(dashboard.familiesOfTheWeek).toEqual([
+      {
+        id: "family-a",
+        name: "Adewale",
+        zoneId: "zone-hope",
+        zoneName: "Hope",
+      },
+    ]);
+  });
 });
 
 describe("church dashboard access", () => {

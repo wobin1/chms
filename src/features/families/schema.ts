@@ -4,10 +4,18 @@ export const familySchema = z
   .object({
     name: z.string().min(1).max(80),
     address: z.string().max(200).optional().nullable(),
+    zoneId: z.string().uuid(),
   })
   .strict();
 
-export const updateFamilySchema = familySchema.partial();
+export const updateFamilySchema = z
+  .object({
+    name: z.string().min(1).max(80).optional(),
+    address: z.string().max(200).optional().nullable(),
+    zoneId: z.string().uuid().optional(),
+    familyOfTheWeek: z.boolean().optional(),
+  })
+  .strict();
 
 export const familyRelationshipSchema = z.string().min(1).max(40);
 

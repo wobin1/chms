@@ -41,6 +41,7 @@ export const CHURCH_ADMIN_PERMISSIONS = [...CHURCH_PERMISSIONS];
 export const ZONE_LEADER_PERMISSIONS = [
   "zones:read",
   "members:read",
+  "families:read",
   "pastoral:read",
 ] as const;
 

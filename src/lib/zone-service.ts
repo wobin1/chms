@@ -10,6 +10,7 @@ import { type ListFilters, resolvePagination } from "./pagination";
 
 const zoneInclude = {
   _count: { select: { members: true, leaders: true } },
+  familyOfTheWeek: { select: { id: true, name: true } },
   leaders: {
     where: { status: "ACTIVE" as const },
     include: { user: { select: { id: true, name: true, email: true } } },

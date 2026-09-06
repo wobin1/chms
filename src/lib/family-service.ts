@@ -3,13 +3,20 @@ import { writeAuditLog } from "./audit";
 import type { AuthContext } from "./auth-types";
 import { NotFoundError, ValidationError } from "./errors";
 import { prisma } from "./db";
-import { assertMemberBelongsToChurch } from "./member-rules";
+import {
+  assertMemberBelongsToChurch,
+  assertZoneBelongsToChurch,
+} from "./member-rules";
 import { requirePermission } from "./permissions";
 import { throwIfUniqueConflict } from "./prisma-errors";
 import { requireChurch, tenantWhere } from "./tenant";
 import { type ListFilters, resolvePagination } from "./pagination";
+import { listAssignedZoneIds } from "./zone-service";
+
+type FamilyListFilters = ListFilters & { zoneId?: string };
 
 const familyInclude = {
+  zone: { select: { id: true, name: true, familyOfTheWeekId: true } },
   members: {
     include: {
       member: {
@@ -46,12 +53,69 @@ const familyInclude = {
   _count: { select: { members: true, children: true } },
 };
 
-export async function listFamilies(session: AuthContext, filters: ListFilters = {}) {
+function withFamilyOfTheWeekFlag<
+  T extends { id: string; zone?: { familyOfTheWeekId: string | null } | null },
+>(family: T) {
+  return {
+    ...family,
+    isFamilyOfTheWeek: family.zone?.familyOfTheWeekId === family.id,
+  };
+}
+
+function isFamilyZoneScoped(session: AuthContext) {
+  return (
+    !session.permissions.includes("families:manage") &&
+    session.permissions.includes("families:read")
+  );
+}
+
+async function familyZoneScope(session: AuthContext, churchId: string) {
+  if (!isFamilyZoneScoped(session)) {
+    return undefined;
+  }
+  const assignedZoneIds = await listAssignedZoneIds(session.userId, churchId);
+  return { zoneId: { in: assignedZoneIds } };
+}
+
+function constrainFamilyZone(
+  zoneScope: { zoneId: { in: string[] } } | undefined,
+  requestedZoneId?: string,
+) {
+  if (!requestedZoneId) {
+    return zoneScope;
+  }
+  if (!zoneScope) {
+    return { zoneId: requestedZoneId };
+  }
+  if (!zoneScope.zoneId.in.includes(requestedZoneId)) {
+    return { zoneId: { in: [] as string[] } };
+  }
+  return { zoneId: requestedZoneId };
+}
+
+async function assertFamilyZone(churchId: string, zoneId: string) {
+  const zone = await prisma.zone.findFirst({
+    where: { id: zoneId, churchId },
+    select: { id: true, churchId: true },
+  });
+  assertZoneBelongsToChurch(zone, churchId);
+  return zone;
+}
+
+export async function listFamilies(
+  session: AuthContext,
+  filters: FamilyListFilters = {},
+) {
   requirePermission(session, "families:read");
   const churchId = requireChurch(session);
   const { page, pageSize, skip, take } = resolvePagination(filters);
+  const zoneScope = constrainFamilyZone(
+    await familyZoneScope(session, churchId),
+    filters.zoneId,
+  );
   const where = {
     ...tenantWhere(churchId),
+    ...zoneScope,
     ...(filters.q
       ? {
           OR: [
@@ -71,7 +135,12 @@ export async function listFamilies(session: AuthContext, filters: ListFilters = 
     }),
     prisma.family.count({ where }),
   ]);
-  return { items, total, page, pageSize };
+  return {
+    items: items.map((family) => withFamilyOfTheWeekFlag(family)),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function getFamily(session: AuthContext, familyId: string) {
@@ -84,19 +153,45 @@ export async function getFamily(session: AuthContext, familyId: string) {
   if (!family) {
     throw new NotFoundError();
   }
-  return family;
+  if (isFamilyZoneScoped(session)) {
+    const assignedZoneIds = await listAssignedZoneIds(session.userId, churchId);
+    if (!assignedZoneIds.includes(family.zoneId)) {
+      throw new NotFoundError();
+    }
+  }
+  return withFamilyOfTheWeekFlag(family);
+}
+
+export async function listZoneFamilies(session: AuthContext, zoneId: string) {
+  requirePermission(session, "families:read");
+  const churchId = requireChurch(session);
+  const zone = await prisma.zone.findFirst({
+    where: tenantWhere(churchId, { id: zoneId }),
+  });
+  if (!zone) {
+    throw new NotFoundError();
+  }
+  if (isFamilyZoneScoped(session)) {
+    const assignedZoneIds = await listAssignedZoneIds(session.userId, churchId);
+    if (!assignedZoneIds.includes(zoneId)) {
+      throw new NotFoundError();
+    }
+  }
+  return listFamilies(session, { zoneId, pageSize: 50 });
 }
 
 export async function createFamily(
   session: AuthContext,
-  input: { name: string; address?: string | null },
+  input: { name: string; address?: string | null; zoneId: string },
 ) {
   requirePermission(session, "families:manage");
   const churchId = requireChurch(session);
+  await assertFamilyZone(churchId, input.zoneId);
   try {
     const family = await prisma.family.create({
       data: {
         churchId,
+        zoneId: input.zoneId,
         name: input.name.trim(),
         address: input.address?.trim() || null,
       },
@@ -108,9 +203,9 @@ export async function createFamily(
       action: "family.create",
       entityType: "family",
       entityId: family.id,
-      newData: { name: family.name },
+      newData: { name: family.name, zoneId: family.zoneId },
     });
-    return family;
+    return withFamilyOfTheWeekFlag(family);
   } catch (error) {
     throwIfUniqueConflict(error, "A family with that name already exists");
   }
@@ -119,31 +214,102 @@ export async function createFamily(
 export async function updateFamily(
   session: AuthContext,
   familyId: string,
-  input: { name?: string; address?: string | null },
+  input: {
+    name?: string;
+    address?: string | null;
+    zoneId?: string;
+    familyOfTheWeek?: boolean;
+  },
 ) {
-  requirePermission(session, "families:manage");
+  requirePermission(session, "families:read");
   const existing = await getFamily(session, familyId);
-  try {
-    const family = await prisma.family.update({
-      where: { id: existing.id },
-      data: {
-        name: input.name?.trim(),
-        address:
-          input.address === undefined ? undefined : input.address?.trim() || null,
-      },
-      include: familyInclude,
+  const shouldUpdateProfile =
+    input.name !== undefined ||
+    input.address !== undefined ||
+    input.zoneId !== undefined;
+  if (shouldUpdateProfile) {
+    requirePermission(session, "families:manage");
+  }
+  if (input.zoneId) {
+    await assertFamilyZone(existing.churchId, input.zoneId);
+  }
+  let family: { id: string; zoneId?: string; zone?: { familyOfTheWeekId: string | null } | null } =
+    existing;
+  if (shouldUpdateProfile) {
+    const nextZoneId = input.zoneId ?? existing.zoneId;
+    if (nextZoneId !== existing.zoneId && existing.isFamilyOfTheWeek) {
+      await prisma.zone.update({
+        where: { id: existing.zoneId },
+        data: { familyOfTheWeekId: null },
+      });
+    }
+    try {
+      family = await prisma.family.update({
+        where: { id: existing.id },
+        data: {
+          name: input.name?.trim(),
+          address:
+            input.address === undefined
+              ? undefined
+              : input.address?.trim() || null,
+          zoneId: input.zoneId,
+        },
+        include: familyInclude,
+      });
+      await writeAuditLog({
+        churchId: existing.churchId,
+        userId: session.userId,
+        action: "family.update",
+        entityType: "family",
+        entityId: family.id,
+        newData: input.zoneId ? { zoneId: input.zoneId } : undefined,
+      });
+    } catch (error) {
+      throwIfUniqueConflict(error, "A family with that name already exists");
+    }
+  }
+
+  const zoneId = family.zoneId ?? existing.zoneId;
+  if (input.familyOfTheWeek === true) {
+    await prisma.zone.update({
+      where: { id: zoneId },
+      data: { familyOfTheWeekId: existing.id },
     });
     await writeAuditLog({
       churchId: existing.churchId,
       userId: session.userId,
-      action: "family.update",
+      action: "family.family_of_the_week.set",
       entityType: "family",
-      entityId: family.id,
+      entityId: existing.id,
+      newData: { familyOfTheWeekId: existing.id, zoneId },
     });
-    return family;
-  } catch (error) {
-    throwIfUniqueConflict(error, "A family with that name already exists");
+    return withFamilyOfTheWeekFlag({
+      ...family,
+      id: existing.id,
+      zone: { familyOfTheWeekId: existing.id },
+    });
   }
+  if (input.familyOfTheWeek === false && existing.isFamilyOfTheWeek) {
+    await prisma.zone.update({
+      where: { id: existing.zoneId },
+      data: { familyOfTheWeekId: null },
+    });
+    await writeAuditLog({
+      churchId: existing.churchId,
+      userId: session.userId,
+      action: "family.family_of_the_week.clear",
+      entityType: "family",
+      entityId: existing.id,
+      oldData: { familyOfTheWeekId: existing.id, zoneId: existing.zoneId },
+    });
+    return withFamilyOfTheWeekFlag({
+      ...family,
+      id: existing.id,
+      zone: { familyOfTheWeekId: null },
+    });
+  }
+
+  return withFamilyOfTheWeekFlag(family);
 }
 
 export async function addFamilyMember(
