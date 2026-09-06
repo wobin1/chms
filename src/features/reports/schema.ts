@@ -20,4 +20,21 @@ export const reportFormatQuerySchema = z
   })
   .strict();
 
+const isoDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+
+export const financeGroupBySchema = z.enum(["week", "month", "year"]);
+
+export const financeReportQuerySchema = z
+  .object({
+    from: isoDateSchema.optional(),
+    to: isoDateSchema.optional(),
+    groupBy: financeGroupBySchema.optional().default("month"),
+    format: z.enum(["json", "csv"]).optional(),
+  })
+  .strict();
+
 export type AttendanceGroupBy = z.infer<typeof attendanceGroupBySchema>;
+export type FinanceGroupBy = z.infer<typeof financeGroupBySchema>;
+export type FinanceReportQuery = z.infer<typeof financeReportQuerySchema>;

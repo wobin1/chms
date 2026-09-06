@@ -46,6 +46,7 @@ describe("church sidebar nav", () => {
     const items = visibleNavItems(CHURCH_NAV, [...ZONE_LEADER_PERMISSIONS]);
     expect(isNavPathAllowed("/members", items)).toBe(true);
     expect(isNavPathAllowed("/members/abc", items)).toBe(true);
+    expect(isNavPathAllowed("/celebrants", items)).toBe(true);
     expect(isNavPathAllowed("/dashboard", items)).toBe(true);
     expect(isNavPathAllowed("/change-password", items)).toBe(true);
     expect(isNavPathAllowed("/church", items)).toBe(true);
@@ -81,6 +82,7 @@ describe("church sidebar nav", () => {
     expect(isNavPathAllowed("/families", items)).toBe(true);
     expect(isNavPathAllowed("/children", items)).toBe(true);
     expect(isNavPathAllowed("/children/abc", items)).toBe(true);
+    expect(isNavPathAllowed("/celebrants", items)).toBe(true);
   });
 
   it("allows a church administrator to open events", () => {
@@ -137,6 +139,7 @@ describe("church sidebar nav", () => {
     expect(isNavPathAllowed("/expenses", items)).toBe(true);
     expect(isNavPathAllowed("/reports", items)).toBe(true);
     expect(isNavPathAllowed("/members", items)).toBe(false);
+    expect(isNavPathAllowed("/celebrants", items)).toBe(false);
     expect(isNavPathAllowed("/sermons", items)).toBe(false);
     expect(isNavPathAllowed("/announcements", items)).toBe(false);
     expect(isNavPathAllowed("/pastoral", items)).toBe(false);
@@ -157,6 +160,7 @@ describe("church sidebar nav", () => {
       "/admin/users",
     ]);
     expect(openNavSectionsForPath(items, "/children")).toEqual(["/families"]);
+    expect(openNavSectionsForPath(items, "/celebrants")).toEqual(["/members"]);
     expect(openNavSectionsForPath(items, "/dashboard")).toEqual([]);
   });
 

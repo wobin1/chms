@@ -27,7 +27,13 @@ export const CHURCH_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/church", label: "Church", icon: "church" },
   { href: "/zones", label: "Zones", icon: "zones", permission: "zones:manage" },
-  { href: "/members", label: "Members", icon: "members", permission: "members:read" },
+  {
+    href: "/members",
+    label: "Members",
+    icon: "members",
+    permission: "members:read",
+    children: [{ href: "/celebrants", label: "Celebrants" }],
+  },
   {
     href: "/families",
     label: "Families",

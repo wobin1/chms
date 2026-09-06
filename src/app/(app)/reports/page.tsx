@@ -5,8 +5,12 @@ import { useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { QueryState } from "@/components/query-state";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { AttendanceGroupBy } from "@/features/reports/schema";
+import type {
+  AttendanceGroupBy,
+  FinanceGroupBy,
+} from "@/features/reports/schema";
 import { Select, VISITOR_STATUS_LABELS } from "@/features/services/labels";
 import type { PublicUser } from "@/lib/auth-types";
 import { formatDisplayDate, formatMoney } from "@/lib/ui";
@@ -49,8 +53,18 @@ type FinanceReport = {
   givingTotal: string;
   expenseTotal: string;
   net: string;
+  from?: string;
+  to?: string;
+  groupBy: FinanceGroupBy;
   byGivingType: { name: string; total: string }[];
   byExpenseCategory: { name: string; total: string }[];
+  periodRows: {
+    key: string;
+    label: string;
+    giving: string;
+    expenses: string;
+    net: string;
+  }[];
 };
 
 const ATTENDANCE_GROUPS: { value: AttendanceGroupBy; label: string }[] = [
@@ -60,13 +74,38 @@ const ATTENDANCE_GROUPS: { value: AttendanceGroupBy; label: string }[] = [
   { value: "serviceType", label: "By service type" },
 ];
 
+const FINANCE_GROUPS: { value: FinanceGroupBy; label: string }[] = [
+  { value: "week", label: "By week" },
+  { value: "month", label: "By month" },
+  { value: "year", label: "By year" },
+];
+
 function downloadCsv(path: string) {
   window.location.assign(path);
+}
+
+function financeQueryPath(params: {
+  from: string;
+  to: string;
+  groupBy: FinanceGroupBy;
+  format?: "csv";
+}) {
+  const search = new URLSearchParams();
+  if (params.from) search.set("from", params.from);
+  if (params.to) search.set("to", params.to);
+  search.set("groupBy", params.groupBy);
+  if (params.format) search.set("format", params.format);
+  const qs = search.toString();
+  return qs ? `/api/v1/reports/finance?${qs}` : "/api/v1/reports/finance";
 }
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<Tab>("membership");
   const [groupBy, setGroupBy] = useState<AttendanceGroupBy>("sunday");
+  const [financeFrom, setFinanceFrom] = useState("");
+  const [financeTo, setFinanceTo] = useState("");
+  const [financeGroupBy, setFinanceGroupBy] =
+    useState<FinanceGroupBy>("month");
 
   const me = useQuery({
     queryKey: ["auth", "me"],
@@ -143,10 +182,16 @@ export default function ReportsPage() {
     },
   });
   const finance = useQuery({
-    queryKey: ["reports", "finance"],
+    queryKey: ["reports", "finance", financeFrom, financeTo, financeGroupBy],
     enabled: activeTab === "finance" && canFinance,
     queryFn: async () => {
-      const response = await fetch("/api/v1/reports/finance");
+      const response = await fetch(
+        financeQueryPath({
+          from: financeFrom,
+          to: financeTo,
+          groupBy: financeGroupBy,
+        }),
+      );
       if (!response.ok) throw new Error("failed");
       return (await response.json()) as FinanceReport;
     },
@@ -210,7 +255,16 @@ export default function ReportsPage() {
           {activeTab === "finance" ? (
             <Button
               variant="secondary"
-              onClick={() => downloadCsv("/api/v1/reports/finance?format=csv")}
+              onClick={() =>
+                downloadCsv(
+                  financeQueryPath({
+                    from: financeFrom,
+                    to: financeTo,
+                    groupBy: financeGroupBy,
+                    format: "csv",
+                  }),
+                )
+              }
             >
               Export CSV
             </Button>
@@ -393,72 +447,136 @@ export default function ReportsPage() {
       ) : null}
 
       {activeTab === "finance" ? (
-        <QueryState
-          isLoading={finance.isLoading}
-          isError={finance.isError}
-          isFetching={finance.isFetching && !finance.isLoading}
-        >
-          {finance.data ? (
-            <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <article className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-                  <p className="text-sm text-text-muted">Giving</p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums">
-                    {formatMoney(finance.data.givingTotal)}
-                  </p>
-                </article>
-                <article className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-                  <p className="text-sm text-text-muted">Expenses</p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums">
-                    {formatMoney(finance.data.expenseTotal)}
-                  </p>
-                </article>
-                <article className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-                  <p className="text-sm text-text-muted">Net</p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums">
-                    {formatMoney(finance.data.net)}
-                  </p>
-                </article>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-                  <h2 className="mb-3 text-lg font-semibold">Giving by type</h2>
-                  <DataTable
-                    columns={[
-                      { accessorKey: "name", header: "Type" },
-                      {
-                        id: "total",
-                        header: "Amount",
-                        cell: ({ row }) => formatMoney(row.original.total),
-                      },
-                    ]}
-                    data={finance.data.byGivingType}
-                    emptyTitle="No giving recorded"
-                    emptyDescription="Record giving, then totals will show here."
-                  />
-                </section>
-                <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-                  <h2 className="mb-3 text-lg font-semibold">
-                    Expenses by category
-                  </h2>
-                  <DataTable
-                    columns={[
-                      { accessorKey: "name", header: "Category" },
-                      {
-                        id: "total",
-                        header: "Amount",
-                        cell: ({ row }) => formatMoney(row.original.total),
-                      },
-                    ]}
-                    data={finance.data.byExpenseCategory}
-                    emptyTitle="No expenses recorded"
-                    emptyDescription="Record expenses, then totals will show here."
-                  />
-                </section>
-              </div>
+        <div className="space-y-4">
+          <div className="grid gap-3 print:hidden sm:grid-cols-3">
+            <div>
+              <Label htmlFor="financeFrom">From</Label>
+              <Input
+                id="financeFrom"
+                type="date"
+                value={financeFrom}
+                onChange={(event) => setFinanceFrom(event.target.value)}
+              />
             </div>
-          ) : null}
-        </QueryState>
+            <div>
+              <Label htmlFor="financeTo">To</Label>
+              <Input
+                id="financeTo"
+                type="date"
+                value={financeTo}
+                onChange={(event) => setFinanceTo(event.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="financeGroupBy">Group by</Label>
+              <Select
+                id="financeGroupBy"
+                value={financeGroupBy}
+                onChange={(event) =>
+                  setFinanceGroupBy(event.target.value as FinanceGroupBy)
+                }
+              >
+                {FINANCE_GROUPS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <QueryState
+            isLoading={finance.isLoading}
+            isError={finance.isError}
+            isFetching={finance.isFetching && !finance.isLoading}
+          >
+            {finance.data ? (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <article className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+                    <p className="text-sm text-text-muted">Giving</p>
+                    <p className="mt-1 text-2xl font-bold tabular-nums">
+                      {formatMoney(finance.data.givingTotal)}
+                    </p>
+                  </article>
+                  <article className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+                    <p className="text-sm text-text-muted">Expenses</p>
+                    <p className="mt-1 text-2xl font-bold tabular-nums">
+                      {formatMoney(finance.data.expenseTotal)}
+                    </p>
+                  </article>
+                  <article className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+                    <p className="text-sm text-text-muted">Net</p>
+                    <p className="mt-1 text-2xl font-bold tabular-nums">
+                      {formatMoney(finance.data.net)}
+                    </p>
+                  </article>
+                </div>
+                <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+                  <h2 className="mb-3 text-lg font-semibold">By period</h2>
+                  <DataTable
+                    columns={[
+                      { accessorKey: "label", header: "Period" },
+                      {
+                        id: "giving",
+                        header: "Giving",
+                        cell: ({ row }) => formatMoney(row.original.giving),
+                      },
+                      {
+                        id: "expenses",
+                        header: "Expenses",
+                        cell: ({ row }) => formatMoney(row.original.expenses),
+                      },
+                      {
+                        id: "net",
+                        header: "Net",
+                        cell: ({ row }) => formatMoney(row.original.net),
+                      },
+                    ]}
+                    data={finance.data.periodRows}
+                    emptyTitle="No finance activity in this range"
+                    emptyDescription="Adjust the dates or record giving and expenses, then return here."
+                  />
+                </section>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+                    <h2 className="mb-3 text-lg font-semibold">Giving by type</h2>
+                    <DataTable
+                      columns={[
+                        { accessorKey: "name", header: "Type" },
+                        {
+                          id: "total",
+                          header: "Amount",
+                          cell: ({ row }) => formatMoney(row.original.total),
+                        },
+                      ]}
+                      data={finance.data.byGivingType}
+                      emptyTitle="No giving recorded"
+                      emptyDescription="Record giving, then totals will show here."
+                    />
+                  </section>
+                  <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+                    <h2 className="mb-3 text-lg font-semibold">
+                      Expenses by category
+                    </h2>
+                    <DataTable
+                      columns={[
+                        { accessorKey: "name", header: "Category" },
+                        {
+                          id: "total",
+                          header: "Amount",
+                          cell: ({ row }) => formatMoney(row.original.total),
+                        },
+                      ]}
+                      data={finance.data.byExpenseCategory}
+                      emptyTitle="No expenses recorded"
+                      emptyDescription="Record expenses, then totals will show here."
+                    />
+                  </section>
+                </div>
+              </div>
+            ) : null}
+          </QueryState>
+        </div>
       ) : null}
     </div>
   );

@@ -185,16 +185,135 @@ describe("report service isolation", () => {
 
   it("lets an accountant read the finance report for their church", async () => {
     givingFindMany.mockResolvedValue([
-      { amount: { toFixed: () => "50.00" }, givingType: { name: "Tithe" } },
+      {
+        amount: { toFixed: () => "50.00" },
+        createdAt: new Date("2026-02-01T12:00:00.000Z"),
+        givingType: { name: "Tithe" },
+      },
     ]);
     expenseFindMany.mockResolvedValue([
-      { amount: { toFixed: () => "10.00" }, category: { name: "Utilities" } },
+      {
+        amount: { toFixed: () => "10.00" },
+        expenseDate: new Date("2026-02-05T00:00:00.000Z"),
+        category: { name: "Utilities" },
+      },
     ]);
     const { getFinanceReport } = await import("./report-service");
     const report = await getFinanceReport(accountant);
     expect(report.givingTotal).toBe("50.00");
     expect(report.expenseTotal).toBe("10.00");
+    expect(report.groupBy).toBe("month");
+    expect(report.periodRows.length).toBeGreaterThan(0);
     expect(JSON.stringify(report)).not.toContain("memberId");
+  });
+
+  it("filters finance reports by date range and builds period rows", async () => {
+    givingFindMany.mockResolvedValue([
+      {
+        amount: { toFixed: () => "100.00" },
+        createdAt: new Date("2026-01-11T12:00:00.000Z"),
+        givingType: { name: "Tithe" },
+      },
+      {
+        amount: { toFixed: () => "40.00" },
+        createdAt: new Date("2026-02-08T12:00:00.000Z"),
+        givingType: { name: "Offering" },
+      },
+    ]);
+    expenseFindMany.mockResolvedValue([
+      {
+        amount: { toFixed: () => "20.00" },
+        expenseDate: new Date("2026-01-15T00:00:00.000Z"),
+        category: { name: "Utilities" },
+      },
+      {
+        amount: { toFixed: () => "5.00" },
+        expenseDate: new Date("2026-02-10T00:00:00.000Z"),
+        category: { name: "Transport" },
+      },
+    ]);
+    const { getFinanceReport } = await import("./report-service");
+    const report = await getFinanceReport(accountant, {
+      from: "2026-01-01",
+      to: "2026-02-28",
+      groupBy: "month",
+    });
+    expect(givingFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          churchId: "church-a",
+          createdAt: {
+            gte: new Date("2026-01-01T00:00:00.000Z"),
+            lte: new Date("2026-02-28T23:59:59.999Z"),
+          },
+        }),
+      }),
+    );
+    expect(expenseFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          churchId: "church-a",
+          expenseDate: {
+            gte: new Date("2026-01-01T00:00:00.000Z"),
+            lte: new Date("2026-02-28T23:59:59.999Z"),
+          },
+        }),
+      }),
+    );
+    expect(report.givingTotal).toBe("140.00");
+    expect(report.expenseTotal).toBe("25.00");
+    expect(report.net).toBe("115.00");
+    expect(report.from).toBe("2026-01-01");
+    expect(report.to).toBe("2026-02-28");
+    expect(report.groupBy).toBe("month");
+    expect(report.periodRows).toEqual([
+      {
+        key: "2026-01",
+        label: "2026-01",
+        giving: "100.00",
+        expenses: "20.00",
+        net: "80.00",
+      },
+      {
+        key: "2026-02",
+        label: "2026-02",
+        giving: "40.00",
+        expenses: "5.00",
+        net: "35.00",
+      },
+    ]);
+    expect(report.byGivingType).toEqual(
+      expect.arrayContaining([
+        { name: "Tithe", total: "100.00" },
+        { name: "Offering", total: "40.00" },
+      ]),
+    );
+  });
+
+  it("includes period rows in the finance CSV", async () => {
+    const { financeReportToCsv } = await import("./report-service");
+    const csv = financeReportToCsv({
+      givingTotal: "100.00",
+      expenseTotal: "20.00",
+      net: "80.00",
+      from: "2026-01-01",
+      to: "2026-01-31",
+      groupBy: "month",
+      byGivingType: [{ name: "Tithe", total: "100.00" }],
+      byExpenseCategory: [{ name: "Utilities", total: "20.00" }],
+      periodRows: [
+        {
+          key: "2026-01",
+          label: "2026-01",
+          giving: "100.00",
+          expenses: "20.00",
+          net: "80.00",
+        },
+      ],
+    });
+    expect(csv).toContain("Period");
+    expect(csv).toContain("2026-01");
+    expect(csv).toContain("100.00");
   });
 
   it("builds a membership CSV from this church's aggregates only", async () => {

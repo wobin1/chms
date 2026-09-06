@@ -1,6 +1,10 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
-import type { AttendanceGroupBy } from "@/features/reports/schema";
+import type {
+  AttendanceGroupBy,
+  FinanceGroupBy,
+  FinanceReportQuery,
+} from "@/features/reports/schema";
 import type { AuthContext } from "./auth-types";
 import { prisma } from "./db";
 import { requirePermission } from "./permissions";
@@ -37,12 +41,24 @@ export type EventReport = {
   rows: { name: string; startDate: Date; location: string; attendanceCount: number }[];
 };
 
+export type FinancePeriodRow = {
+  key: string;
+  label: string;
+  giving: string;
+  expenses: string;
+  net: string;
+};
+
 export type FinanceReport = {
   givingTotal: string;
   expenseTotal: string;
   net: string;
+  from?: string;
+  to?: string;
+  groupBy: FinanceGroupBy;
   byGivingType: { name: string; total: string }[];
   byExpenseCategory: { name: string; total: string }[];
+  periodRows: FinancePeriodRow[];
 };
 
 function csvCell(value: string | number | null | undefined) {
@@ -115,19 +131,79 @@ export function eventReportToCsv(report: EventReport) {
 
 export function financeReportToCsv(report: FinanceReport) {
   return toCsv(
-    ["Section", "Name", "Amount"],
+    ["Section", "Name", "Amount", "Giving", "Expenses", "Net"],
     [
-      ["Total", "Giving", report.givingTotal],
-      ["Total", "Expenses", report.expenseTotal],
-      ["Total", "Net", report.net],
-      ...report.byGivingType.map((row) => ["Giving type", row.name, row.total]),
+      ...(report.from || report.to
+        ? [
+            [
+              "Range",
+              [report.from ?? "", report.to ?? ""].filter(Boolean).join(" to "),
+              "",
+              "",
+              "",
+              "",
+            ],
+          ]
+        : []),
+      ["Total", "Giving", report.givingTotal, "", "", ""],
+      ["Total", "Expenses", report.expenseTotal, "", "", ""],
+      ["Total", "Net", report.net, "", "", ""],
+      ...report.periodRows.map((row) => [
+        "Period",
+        row.label,
+        "",
+        row.giving,
+        row.expenses,
+        row.net,
+      ]),
+      ...report.byGivingType.map((row) => [
+        "Giving type",
+        row.name,
+        row.total,
+        "",
+        "",
+        "",
+      ]),
       ...report.byExpenseCategory.map((row) => [
         "Expense category",
         row.name,
         row.total,
+        "",
+        "",
+        "",
       ]),
     ],
   );
+}
+
+function startOfUtcDay(isoDate: string) {
+  return new Date(`${isoDate}T00:00:00.000Z`);
+}
+
+function endOfUtcDay(isoDate: string) {
+  return new Date(`${isoDate}T23:59:59.999Z`);
+}
+
+function financePeriodBucket(groupBy: FinanceGroupBy, date: Date) {
+  const iso = date.toISOString().slice(0, 10);
+  if (groupBy === "year") {
+    return { key: iso.slice(0, 4), label: iso.slice(0, 4) };
+  }
+  if (groupBy === "month") {
+    return { key: iso.slice(0, 7), label: iso.slice(0, 7) };
+  }
+  // ISO week: Monday start, key YYYY-Www
+  const utc = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+  const day = utc.getUTCDay() || 7;
+  utc.setUTCDate(utc.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(
+    ((utc.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+  );
+  const key = `${utc.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+  return { key, label: key };
 }
 
 export async function getMembershipReport(session: AuthContext) {
@@ -326,21 +402,43 @@ export async function getEventReport(session: AuthContext) {
   } satisfies EventReport;
 }
 
-export async function getFinanceReport(session: AuthContext) {
+export async function getFinanceReport(
+  session: AuthContext,
+  query: Partial<FinanceReportQuery> = {},
+) {
   requirePermission(session, "finance:read");
   const churchId = requireChurch(session);
+  const groupBy: FinanceGroupBy = query.groupBy ?? "month";
+  const from = query.from;
+  const to = query.to;
+
+  const givingWhere: Prisma.GivingWhereInput = { churchId };
+  const expenseWhere: Prisma.ExpenseWhereInput = { churchId };
+  if (from || to) {
+    givingWhere.createdAt = {
+      ...(from ? { gte: startOfUtcDay(from) } : {}),
+      ...(to ? { lte: endOfUtcDay(to) } : {}),
+    };
+    expenseWhere.expenseDate = {
+      ...(from ? { gte: startOfUtcDay(from) } : {}),
+      ...(to ? { lte: endOfUtcDay(to) } : {}),
+    };
+  }
+
   const [giving, expenses] = await Promise.all([
     prisma.giving.findMany({
-      where: { churchId },
+      where: givingWhere,
       select: {
         amount: true,
+        createdAt: true,
         givingType: { select: { name: true } },
       },
     }),
     prisma.expense.findMany({
-      where: { churchId },
+      where: expenseWhere,
       select: {
         amount: true,
+        expenseDate: true,
         category: { select: { name: true } },
       },
     }),
@@ -348,6 +446,11 @@ export async function getFinanceReport(session: AuthContext) {
 
   const byGivingType = new Map<string, string>();
   let givingTotal = "0.00";
+  const periodBuckets = new Map<
+    string,
+    { label: string; giving: string; expenses: string }
+  >();
+
   for (const row of giving) {
     const amount = moneyString(row.amount);
     givingTotal = addMoney(givingTotal, amount);
@@ -355,6 +458,14 @@ export async function getFinanceReport(session: AuthContext) {
       row.givingType.name,
       addMoney(byGivingType.get(row.givingType.name) ?? "0.00", amount),
     );
+    const { key, label } = financePeriodBucket(groupBy, row.createdAt);
+    const bucket = periodBuckets.get(key) ?? {
+      label,
+      giving: "0.00",
+      expenses: "0.00",
+    };
+    bucket.giving = addMoney(bucket.giving, amount);
+    periodBuckets.set(key, bucket);
   }
 
   const byExpenseCategory = new Map<string, string>();
@@ -366,12 +477,33 @@ export async function getFinanceReport(session: AuthContext) {
       row.category.name,
       addMoney(byExpenseCategory.get(row.category.name) ?? "0.00", amount),
     );
+    const { key, label } = financePeriodBucket(groupBy, row.expenseDate);
+    const bucket = periodBuckets.get(key) ?? {
+      label,
+      giving: "0.00",
+      expenses: "0.00",
+    };
+    bucket.expenses = addMoney(bucket.expenses, amount);
+    periodBuckets.set(key, bucket);
   }
+
+  const periodRows = [...periodBuckets.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, bucket]) => ({
+      key,
+      label: bucket.label,
+      giving: bucket.giving,
+      expenses: bucket.expenses,
+      net: (Number(bucket.giving) - Number(bucket.expenses)).toFixed(2),
+    }));
 
   return {
     givingTotal,
     expenseTotal,
     net: (Number(givingTotal) - Number(expenseTotal)).toFixed(2),
+    ...(from ? { from } : {}),
+    ...(to ? { to } : {}),
+    groupBy,
     byGivingType: [...byGivingType.entries()].map(([name, total]) => ({
       name,
       total,
@@ -380,5 +512,6 @@ export async function getFinanceReport(session: AuthContext) {
       name,
       total,
     })),
+    periodRows,
   } satisfies FinanceReport;
 }
